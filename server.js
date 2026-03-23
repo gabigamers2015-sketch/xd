@@ -49,15 +49,45 @@ const app = express();
 // ⚙️  KEYS
 // ============================================================================
 const CONFIG = {
-    OPENROUTER_KEY: "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",
+    OPENROUTER_KEY: "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",
     JSON2VIDEO_KEY: "3SCVBQqgJGsVB0eMVUZY15gt5QSQe6CF1C6DdcZV",
     AICC_KEY:       "sk-4Kza9DIAB5AQH1PZ2e1avxBGeDR0M4emu0hoUFt8hrJYAfXc", // AIML API - Qwen Image
-    GOOGLE_AI_KEY:  "AIzaSyDHVbsxIDjjz7vYwFx6qTWW0HxENRphZ5Q",
+    GOOGLE_AI_KEY:  "AIzaSyCM27w5-1Q7c2GQn9RKzrv8iyyiCNnNECQ",
     IMGBB_KEY:      "ace263f5b12a89fed6913c31acdd34b9",
     PORT:           3000,
     LOG_FILE:       path.join(__dirname, "omni_audit.log"),
-    VERSION:        "13.0.0",
-    IMG_DELAY_MS:   4000,   // delay entre imágenes (rate limit Imagen free tier)
+    VERSION:        "13.2.0",
+    IMG_DELAY_MS:   8000,   // delay entre imágenes (rate limit Imagen free tier)
+
+    // ── FIX #3: PUBLIC_URL — nunca usar localhost en refs externas ──────────
+    // Reemplazá con tu IP/dominio público para que Json2Video pueda alcanzarte
+    // Ej: "https://tu-dominio.com" o la URL de localtunnel/ngrok
+    PUBLIC_URL: process.env.PUBLIC_URL || "https://omniforge-ai.loca.lt",
+
+    // ── INTEGRACIÓN GMAIL ────────────────────────────────────────────────────
+    // Configurá vía variables de entorno (.env):
+    //   GMAIL_USER=tu@gmail.com  GMAIL_APP_PASSWORD=xxxx
+    GMAIL_USER:     process.env.GMAIL_USER     || "",
+    GMAIL_PASS:     process.env.GMAIL_PASS     || "", // App Password de Gmail (16 chars)
+    NOTIFY_EMAIL:   process.env.NOTIFY_EMAIL   || "", // destinatario de notificaciones
+
+    // ── INTEGRACIÓN GOOGLE CALENDAR ──────────────────────────────────────────
+    // OAuth2 para Google Calendar — service account o credenciales del usuario
+    GCAL_CALENDAR_ID: process.env.GCAL_CALENDAR_ID || "primary",
+
+    // ── INTEGRACIÓN BASE44 ───────────────────────────────────────────────────
+    // API Key de Base44 para persistencia de proyectos en la nube
+    BASE44_API_KEY:  process.env.BASE44_API_KEY  || "",
+    BASE44_APP_ID:   process.env.BASE44_APP_ID   || "",
+
+    // ── GENERADORES DE VIDEO GRATUITOS ───────────────────────────────────────
+    // Pexels: gratis, key en https://www.pexels.com/api/ (free forever)
+    PEXELS_KEY:      process.env.PEXELS_KEY      || "q0ItyDFTLTB4g725UWHNGQAbagHb3Z0eAS0x30Ijs5utRWgzSfZ5Q4e3",
+    // Pixabay: gratis, key en https://pixabay.com/api/docs/ (free forever)
+    PIXABAY_KEY:     process.env.PIXABAY_KEY     || "55146641-1258dac280f554a718cd2ce83",
+    // Coverr: 100% gratis, SIN API KEY
+    // Videvo: 100% gratis, SIN API KEY (algunos clips)
+    // ──────────────────────────────────────────────────────────────────────────
 };
 
 // ============================================================================
@@ -105,7 +135,7 @@ async function callAI(modelId, system, user) {
         { model:modelId, messages:[{role:"system",content:system},{role:"user",content:user}],
           response_format:{type:"json_object"}, temperature:0.8, max_tokens:2000 },
         { headers:{ "Authorization":`Bearer ${CONFIG.OPENROUTER_KEY}`,
-          "Content-Type":"application/json","HTTP-Referer":"http://localhost:3000","X-Title":"OmniForge" },
+          "Content-Type":"application/json","HTTP-Referer": CONFIG.PUBLIC_URL,"X-Title":"OmniForge" },
           timeout:30000 }
     );
     return JSON.parse(r.data.choices[0].message.content);
@@ -295,7 +325,115 @@ const SFX_LIBRARY = {
     trans_flip:        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
 };
 
-// warmSfxCache — solo valida con HEAD, no descarga
+// ============================================================================
+// 🎬  TIER 0.5: GENERADORES DE VIDEO GRATUITOS — sin costo, clips reales
+// ============================================================================
+// Fuentes 100% gratuitas:
+//   • Coverr.co     — API pública SIN API key
+//   • Pexels Videos — API gratuita (free key en pexels.com/api)
+//   • Pixabay Video — API gratuita (free key en pixabay.com/api/docs)
+//
+// Retorna una URL de video .mp4 que Json2Video puede descargar y usar
+// como clip base de la escena (reemplaza la imagen estática → video real)
+// ============================================================================
+
+async function tryStockVideo(prompt, idx, preferVertical=true) {
+    // Extraer keywords del prompt (las primeras 3 palabras del sujeto)
+    const rawKw  = cleanPrompt(prompt).split(",")[0].trim();
+    const keyword = rawKw.split(" ").slice(0, 3).join(" ") || "nature";
+    const orientation = preferVertical ? "portrait" : "landscape";
+
+    log.info(`  [${idx+1}] Stock video: "${keyword}" (${orientation})`);
+
+    // ── Coverr.co — totalmente gratis, sin API key ────────────────────────
+    try {
+        const r = await axios.get("https://api.coverr.co/videos", {
+            params: { keywords: keyword, page: 1, per_page: 5 },
+            timeout: 8000,
+            headers: { "User-Agent": "OmniForge/13.1" },
+        });
+        const hits = r.data?.hits || r.data?.videos || [];
+        if (hits.length > 0) {
+            // Elegir uno al azar para variedad
+            const v = hits[Math.floor(Math.random() * hits.length)];
+            // Coverr tiene múltiples formatos — buscar HD
+            const url = v?.url
+                || v?.video_url
+                || v?.files?.find(f => f?.quality === "hd")?.link
+                || v?.sources?.mp4
+                || v?.sources?.original;
+            if (url && url.startsWith("http")) {
+                log.ok(`  [${idx+1}] ✓ Coverr: ${url.slice(0,70)}`);
+                return url;
+            }
+        }
+    } catch(e) {
+        log.warn(`  [${idx+1}] Coverr fallo: ${e.message.slice(0,60)}`);
+    }
+
+    // ── Pexels Videos — gratis con key (free tier ilimitado) ─────────────
+    if (CONFIG.PEXELS_KEY) {
+        try {
+            const r = await axios.get("https://api.pexels.com/videos/search", {
+                params: {
+                    query: keyword,
+                    per_page: 5,
+                    orientation,
+                    size: "medium",
+                },
+                headers: { "Authorization": CONFIG.PEXELS_KEY },
+                timeout: 8000,
+            });
+            const videos = r.data?.videos || [];
+            if (videos.length > 0) {
+                const v = videos[Math.floor(Math.random() * videos.length)];
+                // Buscar la resolución más adecuada (hd o sd)
+                const file = v?.video_files?.find(f => f.quality === "hd")
+                          || v?.video_files?.find(f => f.quality === "sd")
+                          || v?.video_files?.[0];
+                const url = file?.link;
+                if (url && url.startsWith("http")) {
+                    log.ok(`  [${idx+1}] ✓ Pexels: ${url.slice(0,70)}`);
+                    return url;
+                }
+            }
+        } catch(e) {
+            log.warn(`  [${idx+1}] Pexels fallo: ${e.message.slice(0,60)}`);
+        }
+    }
+
+    // ── Pixabay Videos — gratis con key (free tier) ───────────────────────
+    if (CONFIG.PIXABAY_KEY) {
+        try {
+            const r = await axios.get("https://pixabay.com/api/videos/", {
+                params: {
+                    key:      CONFIG.PIXABAY_KEY,
+                    q:        keyword,
+                    per_page: 5,
+                    video_type: "all",
+                },
+                timeout: 8000,
+            });
+            const hits = r.data?.hits || [];
+            if (hits.length > 0) {
+                const v = hits[Math.floor(Math.random() * hits.length)];
+                const url = v?.videos?.large?.url
+                         || v?.videos?.medium?.url
+                         || v?.videos?.small?.url;
+                if (url && url.startsWith("http")) {
+                    log.ok(`  [${idx+1}] ✓ Pixabay: ${url.slice(0,70)}`);
+                    return url;
+                }
+            }
+        } catch(e) {
+            log.warn(`  [${idx+1}] Pixabay fallo: ${e.message.slice(0,60)}`);
+        }
+    }
+
+    throw new Error(`Stock video: ninguna fuente devolvió clips para "${keyword}"`);
+}
+
+
 const sfxCache = new Map();
 async function warmSfxCache() {
     const keys = Object.keys(SFX_LIBRARY).filter(k => SFX_LIBRARY[k]);
@@ -355,7 +493,7 @@ function makeParallaxOverlay(text, dur) {
                 "font-size":"46px", "font-family":"Montserrat", "font-weight":"800",
                 "font-color":"rgba(0,0,0,0.6)", "background-color":"transparent",
                 "padding":"22px 42px", "width":"920px", "text-align":"center",
-                "transform":"translateY(4px) translateX(3px)",
+                // FIX: transform no soportado por J2V → removido
             }
         },
         // Texto principal — capa frontal
@@ -597,6 +735,17 @@ async function getImageUrl(visualPrompt, idx, width=720, height=1280) {
         }
     }
 
+    // ── Tier 0.5: Stock Video (Coverr / Pexels / Pixabay) — GRATIS ───────────
+    // Se intenta después de AIML video para tener clips reales sin costo
+    // Solo si AIML video falló o si SKIP_VIDEO_TIER=true
+    try {
+        const videoUrl = await tryStockVideo(cleanFull, idx, height > width);
+        log.ok(`  [${idx+1}] ✓ Stock Video → ${videoUrl.slice(0,60)}`);
+        return { primary: videoUrl, fallback: videoUrl, type: "video" };
+    } catch(e) {
+        log.warn(`  [${idx+1}] Stock video fallo: ${e.message.slice(0,80)}`);
+    }
+
     // ── Tier 1: AIML / Flux Dev ──────────────────────────────────────────────
     try {
         const url = await tryQwen(cleanFull, idx);
@@ -606,27 +755,53 @@ async function getImageUrl(visualPrompt, idx, width=720, height=1280) {
         log.warn(`  [${idx+1}] AIML fallo: ${e.message.slice(0,60)}`);
     }
 
-    // ── Tier 2: Pollinations → descarga → imgBB ──────────────────────────────
-    // 2 intentos máx. 10s de espera antes de descargar (Pollinations tarda en generar).
-    // 404 = imagen aún no lista → esperar 8s más y reintentar con seed diferente.
-    // 429 = ban temporal → skip inmediato a Picsum.
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const polSeed = sceneSeed + 7777 + attempt * 54321;
-        const polUrl  = `https://image.pollinations.ai/prompt/${enc}?width=${width}&height=${height}&nologo=true&seed=${polSeed}&model=flux&enhance=true`;
-        log.info(`  [${idx+1}] Pollinations intento ${attempt+1}/2 (seed ${polSeed})...`);
+    // ── Tier 2: Pollinations → descarga → imgBB (FIX #4: retry robusto) ────────
+    // Circuit breaker: si Pollinations falla 2 veces seguidas con 429, skip directo.
+    // Backoff exponencial: 8s → 16s → 24s (con jitter ±2s para evitar thundering herd).
+    const MAX_POLL_ATTEMPTS = 3;
+    let polCircuitOpen = false; // si tuvimos un 429 definitivo, skip resto de intentos
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && !polCircuitOpen; attempt++) {
+        const jitter    = Math.floor(Math.random() * 2000);
+        const waitMs    = 8000 * (attempt + 1) + jitter; // 8s, 16s, 24s + jitter
+        const polSeed   = sceneSeed + 7777 + attempt * 54321;
+        const polUrl    = `https://image.pollinations.ai/prompt/${enc}?width=${width}&height=${height}&nologo=true&seed=${polSeed}&model=flux&enhance=true`;
+
+        log.info(`  [${idx+1}] Pollinations intento ${attempt+1}/${MAX_POLL_ATTEMPTS} (seed ${polSeed}, espera ${Math.round(waitMs/1000)}s)...`);
         try {
-            await sleep(attempt === 0 ? 8000 : 10000); // 8s primer intento, 10s segundo (más chances de estar lista)
+            // FIX #4: esperar antes de descargar — Pollinations genera la imagen async
+            await sleep(waitMs);
+
+            // HEAD check primero: si devuelve 4xx/5xx sin descargar, no gastamos tiempo
+            let headOk = false;
+            try {
+                const headResp = await axios.head(polUrl, { timeout: 10000,
+                    headers: { "User-Agent": "Mozilla/5.0 (compatible; OmniForge/13.1)" } });
+                headOk = headResp.status >= 200 && headResp.status < 300;
+                log.info(`  [${idx+1}] HEAD Pollinations → ${headResp.status}`);
+            } catch(headErr) {
+                const headCode = headErr.response?.status;
+                if (headCode === 429) { polCircuitOpen = true; log.warn(`  [${idx+1}] Pollinations 429 — circuit open, skip`); break; }
+                if (headCode === 404) { log.warn(`  [${idx+1}] Pollinations 404 — imagen aún no lista`); continue; }
+                // Si HEAD falla por timeout u otro motivo, intentar descargar de todos modos
+                log.warn(`  [${idx+1}] HEAD fallo (${headCode||headErr.message.slice(0,30)}) — intentando descarga...`);
+            }
+            if (polCircuitOpen) break;
+
             const stableUrl = await downloadAndUpload(polUrl, idx, polSeed);
-            log.ok(`  [${idx+1}] ✓ Pollinations (intento ${attempt+1})`);
+            log.ok(`  [${idx+1}] ✓ Pollinations intento ${attempt+1} → imgBB OK`);
             return { primary: stableUrl, fallback: stableUrl };
+
         } catch(e) {
             const is429 = e.message.includes("429") || e.message.includes("Too Many");
             const is404 = e.message.includes("404") || e.message.includes("Not Found");
-            log.warn(`  [${idx+1}] Pollinations${is429?" 429-ban":is404?" 404-notready":""}: ${e.message.slice(0,60)}`);
-            if (is429) break; // ban → no reintentar
-            if (is404) await sleep(5000); // imagen no lista → pausa extra antes del retry
+            const isSmall = e.message.includes("inválida");
+            log.warn(`  [${idx+1}] Pollinations intento ${attempt+1} fallo${is429?" [429-ban]":is404?" [404-notready]":isSmall?" [imagen chica]":""}: ${e.message.slice(0,70)}`);
+            if (is429) { polCircuitOpen = true; break; } // 429 → circuit open inmediato
+            // 404 o imagen chica → no rompemos el circuito, reintentamos con más espera
         }
     }
+
 
     // ── Tier 3: Picsum — JPG directo, seed único, sin redirects, sin auth ────
     // picsum.photos/seed/{N}/{W}/{H}.jpg → URL estable, JPG real, único por seed.
@@ -827,19 +1002,331 @@ function makeLowerThird(text, dur) {
 function makeColorGrade(mood, dur) {
     const grade = MOOD_GRADE[mood] || MOOD_GRADE.default;
     if (grade.opacity === 0) return null;
-    // Overlay de color sobre toda la escena (LUT simulado)
+    // FIX: J2V no soporta opacity/mix-blend-mode/width:100% en text elements
+    // Usamos background-color con alpha incorporado como workaround
+    const [r, g, b] = hexToRgb(grade.color);
+    const alpha = Math.round(grade.opacity * 100) / 100;
     return {
         type: "text", text: " ",
         position: "center-center", duration: dur,
         settings: {
-            "font-size":"1px",
-            "background-color": grade.color,
-            "width":"100%", "height":"100%",
-            "opacity": String(grade.opacity),
-            "mix-blend-mode": "multiply",
+            "font-size":       "1px",
+            "background-color": `rgba(${r},${g},${b},${alpha})`,
+            "padding":          "0px",
+            "width":            "960px",
         }
     };
 }
+
+// Helper para hex → rgb
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16)||0;
+    const g = parseInt(hex.slice(3,5),16)||0;
+    const b = parseInt(hex.slice(5,7),16)||0;
+    return [r,g,b];
+}
+
+// ============================================================================
+// 🔒  FIX #1 + #2 + #3: sanitizeJ2VPayload
+//     Limpia el payload ANTES de enviarlo a Json2Video:
+//       • Elimina propiedad "audio" del nivel raíz (FIX #1)
+//       • Convierte loop booleano → número (FIX #2)
+//       • Elimina/reemplaza cualquier URL localhost en src/fallback (FIX #3)
+// ============================================================================
+function isLocalhostUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    return /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0)(:\d+)?/i.test(url);
+}
+
+// ── BUG FIX (defensa en profundidad): detecta URLs de video usadas como imagen ──
+// Esto atrapa casos donde el type:"image" se generó con una URL de Pexels video u otro
+// proveedor de video antes de que el fix de imageUrls.type estuviera en su lugar.
+function isVideoUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    // Videos de Pexels (el proveedor stock que usa el pipeline)
+    if (/videos\.pexels\.com/i.test(url)) return true;
+    // Video por extensión de archivo
+    if (/\.(mp4|webm|mov|avi|mkv|m4v)(\?|#|$)/i.test(url)) return true;
+    // Dominios conocidos de video
+    if (/\/(video-files|videos?)\//i.test(url)) return true;
+    return false;
+}
+
+const SAFE_FALLBACK_IMG = (w, h) =>
+    `https://picsum.photos/seed/${Math.floor(Math.random() * 999999)}/${w}/${h}.jpg`;
+
+function sanitizeJ2VPayload(payload, w=720, h=1280) {
+    // ── FIX #1: audio en root → moverlo a la primera escena como elemento ──
+    if (payload.audio) {
+        log.warn("FIX #1: 'audio' en root removido del payload");
+        const audioEl = { type:"audio", src: payload.audio.url || payload.audio.src || "",
+                          volume: payload.audio.volume || 0.12, loop: 1 };
+        if (payload.scenes?.[0]) {
+            payload.scenes[0].elements = payload.scenes[0].elements || [];
+            if (audioEl.src && !isLocalhostUrl(audioEl.src)) {
+                payload.scenes[0].elements.unshift(audioEl);
+            }
+        }
+        delete payload.audio;
+    }
+
+    // ── Recorrer escenas y elementos ────────────────────────────────────────
+    if (Array.isArray(payload.scenes)) {
+        payload.scenes = payload.scenes.map((scene, si) => {
+            if (!Array.isArray(scene.elements)) return scene;
+            const sanitizedEls = [];
+            for (const el of scene.elements) {
+                if (!el) continue;
+                const fixed = { ...el };
+
+                // FIX #2: loop boolean → number
+                if (typeof fixed.loop === "boolean") {
+                    log.warn(`FIX #2: loop:${fixed.loop} → ${fixed.loop ? 1 : 0} (escena ${si+1})`);
+                    fixed.loop = fixed.loop ? 1 : 0;
+                }
+
+                // FIX #3: src con localhost → reemplazar con Picsum seguro
+                if (fixed.src && isLocalhostUrl(fixed.src)) {
+                    log.warn(`FIX #3: src localhost removido (escena ${si+1}): ${fixed.src}`);
+                    // Para imágenes → fallback Picsum; para audio → omitir el elemento
+                    if (fixed.type === "image") {
+                        fixed.src = fixed.fallback && !isLocalhostUrl(fixed.fallback)
+                            ? fixed.fallback
+                            : SAFE_FALLBACK_IMG(w, h);
+                    } else {
+                        // Audios/voces con URL localhost → skip (no hay fallback de audio)
+                        continue;
+                    }
+                }
+
+                // FIX #3: fallback con localhost → Picsum
+                if (fixed.fallback && isLocalhostUrl(fixed.fallback)) {
+                    fixed.fallback = SAFE_FALLBACK_IMG(w, h);
+                }
+
+                // ── BUG FIX #5 (defensa en profundidad): URL de video en element tipo "image"
+                // Si el tipo es "image" pero la URL apunta a un archivo de video (Pexels, mp4, etc.)
+                // → convertir a type:"video" para evitar el error de J2V "codec h264"
+                if (fixed.type === "image" && fixed.src && isVideoUrl(fixed.src)) {
+                    log.warn(`FIX #5: URL de video detectada en elemento image → convirtiendo a video (escena ${si+1}): ${fixed.src.slice(0,60)}`);
+                    fixed.type = "video";
+                    delete fixed.fallback; // video no usa fallback en J2V
+                }
+
+                sanitizedEls.push(fixed);
+            }
+            return { ...scene, elements: sanitizedEls };
+        });
+    }
+
+
+    // ── FIX #4: strip propiedades inválidas de J2V ──────────────────────────
+    // • "extra" → mover a settings (o descartar si son props no soportadas)
+    // • "start" en audio/voice → eliminar (J2V no lo soporta)
+    // • "animation-duration", "mix-blend-mode", "transform" en settings → eliminar
+    // • "width":"100%", "height":"100%" → reemplazar con px
+    const INVALID_SETTINGS_KEYS = new Set([
+        "mix-blend-mode", "animation-duration", "transform", "filter",
+    ]);
+
+    if (Array.isArray(payload.scenes)) {
+        payload.scenes = payload.scenes.map(scene => {
+            if (!Array.isArray(scene.elements)) return scene;
+            return {
+                ...scene,
+                elements: scene.elements.map(el => {
+                    if (!el) return el;
+                    let fixed = { ...el };
+
+                    // Mover "extra" → "settings" (imagen)
+                    if (fixed.extra) {
+                        const s = fixed.settings || {};
+                        const valid = {};
+                        for (const [k, v] of Object.entries(fixed.extra)) {
+                            if (!INVALID_SETTINGS_KEYS.has(k)) valid[k] = v;
+                        }
+                        fixed.settings = { ...s, ...valid };
+                        delete fixed.extra;
+                    }
+
+                    // Limpiar "start" en audio y voice
+                    if ((fixed.type === "audio" || fixed.type === "voice") && "start" in fixed) {
+                        delete fixed.start;
+                    }
+
+                    // Limpiar propiedades CSS inválidas de settings
+                    if (fixed.settings) {
+                        const cleaned = {};
+                        for (const [k, v] of Object.entries(fixed.settings)) {
+                            if (INVALID_SETTINGS_KEYS.has(k)) continue;
+                            // Reemplazar width/height 100% con valor px fijo
+                            if ((k === "width" || k === "height") && String(v) === "100%") {
+                                cleaned[k] = k === "width" ? "960px" : "540px";
+                            } else {
+                                cleaned[k] = v;
+                            }
+                        }
+                        fixed.settings = cleaned;
+                    }
+
+                    return fixed;
+                }).filter(Boolean),
+            };
+        });
+    }
+
+    return payload;
+}
+
+// ============================================================================
+// 📧  INTEGRACIÓN GMAIL — Notificaciones por email al completar un video
+// ============================================================================
+async function sendGmailNotification(data) {
+    if (!CONFIG.GMAIL_USER || !CONFIG.GMAIL_PASS || !CONFIG.NOTIFY_EMAIL) {
+        log.info("Gmail: no configurado (GMAIL_USER/GMAIL_PASS/NOTIFY_EMAIL vacíos)");
+        return false;
+    }
+    try {
+        // Usa Nodemailer con Gmail SMTP. Si no está instalado, instalar: npm i nodemailer
+        let nodemailer;
+        try { nodemailer = require("nodemailer"); } catch(e) {
+            log.warn("Gmail: nodemailer no instalado. Instalá con: npm install nodemailer");
+            return false;
+        }
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: { user: CONFIG.GMAIL_USER, pass: CONFIG.GMAIL_PASS },
+        });
+        const subject = data.success
+            ? `✅ OmniForge: Video "${data.title}" renderizado`
+            : `❌ OmniForge: Error en proyecto ${data.orderId}`;
+
+        const html = `
+<div style="font-family: 'Segoe UI', sans-serif; max-width:600px; background:#0a0a0f; color:#e0e0ff; padding:32px; border-radius:12px; border:1px solid rgba(0,200,255,0.2)">
+  <h2 style="color:#00f5ff; margin-top:0">${data.success ? "🎬 Video Listo" : "⚠️ Error en Pipeline"}</h2>
+  <table style="width:100%; border-collapse:collapse">
+    <tr><td style="padding:8px; color:#888">Título</td><td style="padding:8px; color:#fff; font-weight:600">${data.title || "—"}</td></tr>
+    <tr><td style="padding:8px; color:#888">Mood</td><td style="padding:8px">${data.mood || "—"}</td></tr>
+    <tr><td style="padding:8px; color:#888">Orden</td><td style="padding:8px; font-family:monospace">${data.orderId}</td></tr>
+    <tr><td style="padding:8px; color:#888">Escenas</td><td style="padding:8px">${data.sceneCount || "—"}</td></tr>
+    ${data.projectId ? `<tr><td style="padding:8px; color:#888">ID Render</td><td style="padding:8px; font-family:monospace">${data.projectId}</td></tr>` : ""}
+    ${data.error    ? `<tr><td style="padding:8px; color:#f55">Error</td><td style="padding:8px; color:#f99">${data.error.slice(0,300)}</td></tr>` : ""}
+  </table>
+  ${data.thumbnail ? `<img src="${data.thumbnail}" style="width:100%; border-radius:8px; margin-top:20px">` : ""}
+  <p style="color:#555; font-size:12px; margin-top:24px">OmniForge v${CONFIG.VERSION} · ${new Date().toLocaleString("es-AR")}</p>
+</div>`;
+
+        await transporter.sendMail({
+            from: `"OmniForge AI" <${CONFIG.GMAIL_USER}>`,
+            to:   CONFIG.NOTIFY_EMAIL,
+            subject, html,
+        });
+        log.ok(`Gmail: notificación enviada a ${CONFIG.NOTIFY_EMAIL}`);
+        return true;
+    } catch(e) {
+        log.warn(`Gmail: fallo al enviar notificación — ${e.message.slice(0,100)}`);
+        return false;
+    }
+}
+
+// ============================================================================
+// 📅  INTEGRACIÓN GOOGLE CALENDAR — Crea un evento por cada video generado
+// ============================================================================
+async function createCalendarEvent(data) {
+    // Requiere: npm install googleapis
+    // Credenciales OAuth2 o service account en process.env
+    const clientId     = process.env.GCAL_CLIENT_ID;
+    const clientSecret = process.env.GCAL_CLIENT_SECRET;
+    const refreshToken = process.env.GCAL_REFRESH_TOKEN;
+    if (!clientId || !clientSecret || !refreshToken) {
+        log.info("Google Calendar: no configurado (GCAL_CLIENT_ID / GCAL_CLIENT_SECRET / GCAL_REFRESH_TOKEN vacíos)");
+        return null;
+    }
+    try {
+        const { google } = require("googleapis");
+        const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+        oauth2.setCredentials({ refresh_token: refreshToken });
+
+        const calendar = google.calendar({ version:"v3", auth: oauth2 });
+        const now      = new Date();
+        const end      = new Date(now.getTime() + 60 * 60 * 1000); // +1h
+
+        const event = {
+            summary:     `🎬 OmniForge: ${data.title || "Video generado"}`,
+            description: [
+                `Orden: ${data.orderId}`,
+                `Mood: ${data.mood || "—"}`,
+                `Escenas: ${data.sceneCount || "—"}`,
+                `ID Render: ${data.projectId || "—"}`,
+                `Prompt: ${data.prompt?.slice(0, 200) || "—"}`,
+            ].join("\n"),
+            start:       { dateTime: now.toISOString(), timeZone: "America/Argentina/Buenos_Aires" },
+            end:         { dateTime: end.toISOString(), timeZone: "America/Argentina/Buenos_Aires" },
+            colorId:     data.success ? "9" : "11", // Verde = OK, Rojo = Error
+        };
+        const res = await calendar.events.insert({ calendarId: CONFIG.GCAL_CALENDAR_ID, requestBody: event });
+        log.ok(`Google Calendar: evento creado → ${res.data.htmlLink}`);
+        return res.data.htmlLink;
+    } catch(e) {
+        log.warn(`Google Calendar: fallo — ${e.message.slice(0, 100)}`);
+        return null;
+    }
+}
+
+// ============================================================================
+// 🗃️  INTEGRACIÓN BASE44 — Guarda metadatos del proyecto en la nube
+// ============================================================================
+async function saveToBase44(data) {
+    if (!CONFIG.BASE44_API_KEY || !CONFIG.BASE44_APP_ID) {
+        log.info("Base44: no configurado (BASE44_API_KEY / BASE44_APP_ID vacíos)");
+        return null;
+    }
+    try {
+        // Base44 REST API — entidad "videos"
+        const endpoint = `https://api.base44.com/api/apps/${CONFIG.BASE44_APP_ID}/entities/videos`;
+        const payload  = {
+            orderId:      data.orderId,
+            title:        data.title     || "",
+            mood:         data.mood      || "",
+            prompt:       (data.prompt   || "").slice(0, 500),
+            sceneCount:   data.sceneCount || 0,
+            format:       data.format    || "portrait",
+            visualStyle:  data.style     || "cinematic",
+            j2v_id:       data.projectId || "",
+            status:       data.success   ? "done" : "error",
+            thumbnailUrl: data.thumbnail || "",
+            createdAt:    new Date().toISOString(),
+            version:      CONFIG.VERSION,
+        };
+        const r = await axios.post(endpoint, payload, {
+            headers: {
+                "Authorization": `Bearer ${CONFIG.BASE44_API_KEY}`,
+                "Content-Type":  "application/json",
+            },
+            timeout: 10000,
+        });
+        log.ok(`Base44: proyecto guardado → id:${r.data?.id || "?"}`);
+        return r.data;
+    } catch(e) {
+        log.warn(`Base44: fallo al guardar — ${e.message.slice(0, 100)}`);
+        return null;
+    }
+}
+
+// ── Helper: ejecutar todas las integraciones externas en paralelo ─────────────
+async function runExternalIntegrations(data) {
+    const [gmailOk, calLink, base44Rec] = await Promise.allSettled([
+        sendGmailNotification(data),
+        createCalendarEvent(data),
+        saveToBase44(data),
+    ]);
+    return {
+        gmail:    gmailOk.value    || false,
+        calendar: calLink.value    || null,
+        base44:   base44Rec.value  || null,
+    };
+}
+
 
 async function assembleProject(guion, width=720, height=1280, opts={}) {
     // ── Extraer TODAS las opciones (FIX: withParallax y withSFX faltaban) ──────
@@ -917,7 +1404,11 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
         const result  = await getImageUrl(fullPrompt, i, width, height);
         const imgUrl  = typeof result === "string" ? result : result.primary;
         const imgFall = typeof result === "string" ? result : (result.fallbacks?.[0] || result.primary);
-        imageUrls.push({ url: imgUrl, fallback: imgFall });
+        // ── BUG FIX: preservar el campo "type" ("video"|"image") del resultado ─────
+        // Sin este campo, isRealVideo siempre es false → URLs de video se usan como
+        // elementos "image" en J2V → error "The URL provided is a video file (h264)"
+        const imgType = typeof result === "object" && result.type ? result.type : "image";
+        imageUrls.push({ url: imgUrl, fallback: imgFall, type: imgType });
 
         // SSE — enviar preview en tiempo real al frontend
         if (localOrderId) {
@@ -938,11 +1429,14 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
 
     // ── INTRO ───────────────────────────────────────────────────────────────
     if (withIntro) {
+        const introIsVideo = imageUrls[0]?.type === "video";
         assembledScenes.push({
             duration: 3,
             elements: [
-                { type:"image", src: imageUrls[0]?.url||"", on_error:"ignore", duration:3,
-                  extra:{"object-fit":"cover","filter":"blur(10px) brightness(0.3)"} },
+                // BUG FIX: usar el tipo correcto (video|image) según el recurso real
+                introIsVideo
+                ? { type:"video", src: imageUrls[0]?.url||"", on_error:"ignore", duration:3, settings:{"object-fit":"cover"} }
+                : { type:"image", src: imageUrls[0]?.url||"", on_error:"ignore", duration:3, settings:{"object-fit":"cover"} },
                 { type:"text", text: guion.title || "OMNIFORGE PRESENTA", position:"center-center", duration:3,
                   settings:{ "font-size":"32px","font-family":"Montserrat","font-weight":"300",
                              "font-color":"#ffffff","background-color":"transparent",
@@ -965,38 +1459,46 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
             transition = getTransition(transStyle, i);
         }
 
-        // Ken Burns — zoom alternado
+        // ── Ken Burns — zoom alternado
         const zoomDir = kenBurns ? (i % 2 === 0 ? "zoom-in" : "zoom-out") : null;
 
         // Beat sync — duración por intensidad de escena
         const sceneDur = beatSyncDuration(s.intensity === "peak" ? "action" : (s.intensity === "low" ? "calm" : guion.mood), opts.duration) || dur;
 
+        // ── Detectar si el recurso es un video real (no imagen estática) ───────
+        const isRealVideo = imageUrls[i]?.type === "video";
+
         const elements = [
-            // ── Imagen principal con Ken Burns ───────────────────────────────
-            {
+            // ── Media principal (video clip real O imagen con Ken Burns) ─────────
+            isRealVideo
+            ? {
+                // Video clip real (stock video o AI video)
+                type:     "video",
+                src:      imageUrls[i].url,
+                on_error: "ignore",
+                duration: sceneDur,
+                settings: { "object-fit": "cover" },
+            }
+            : {
+                // Imagen estática con efecto Ken Burns (zoom via J2V effect)
                 type:     "image",
                 src:      imageUrls[i].url,
                 fallback: imageUrls[i].fallback,
                 on_error: "ignore",
                 duration: sceneDur,
-                extra: {
-                    "object-fit": "cover",
-                    ...(zoomDir ? { "animation": zoomDir, "animation-duration": `${sceneDur}s` } : {}),
-                },
+                settings: { "object-fit": "cover" },
+                // FIX: Ken Burns via settings.animation (formato correcto J2V)
+                ...(zoomDir ? { settings: { "object-fit": "cover", "animation": zoomDir } } : {}),
             },
         ];
 
-        // ── Viñeta cinematográfica — bordes oscuros en todas las escenas ─────
-        // Simula el efecto de lente de cine (vignette) con 4 overlays laterales
+        // ── Barra oscura inferior (reemplaza el gradiente que J2V no soporta) ──
+        // FIX: J2V no soporta "background: linear-gradient" ni "width: 100%"
+        // Usamos un text element con background-color sólido semi-transparent
         elements.push(
-            { type:"text", text:" ", position:"top-center", duration:sceneDur,
-              settings:{ "font-size":"1px","background-color":"rgba(0,0,0,0)",
-                         "width":"100%","height":"120px",
-                         "background":"linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)" }},
             { type:"text", text:" ", position:"bottom-center", duration:sceneDur,
-              settings:{ "font-size":"1px","background-color":"rgba(0,0,0,0)",
-                         "width":"100%","height":"180px",
-                         "background":"linear-gradient(to top, rgba(0,0,0,0.75), transparent)" }},
+              settings:{ "font-size":"1px","background-color":"rgba(0,0,0,0.45)",
+                         "width":"960px","padding":"80px 40px 20px" }},
         );
 
         // ── Color grading (feat. #14) ─────────────────────────────────────────
@@ -1018,14 +1520,11 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
                 elements.push(...makeParallaxOverlay(s.text || "", sceneDur));
             } else {
                 // Versión mejorada: el texto aparece a los 0.4s con fade (start)
+                // FIX: J2V no soporta "animation" en settings ni "start" → removidos
                 elements.push({
                     type:"text", text:(s.text||"").toUpperCase(),
-                    position, duration: sceneDur - 0.4, start: 0.4,
-                    settings: {
-                        ...settings,
-                        "animation": "fade-in",
-                        "animation-duration": "0.6s",
-                    }
+                    position, duration: sceneDur,
+                    settings
                 });
             }
         }
@@ -1048,7 +1547,7 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
         if (visualStyle === "documentary" && s.shot_type) {
             elements.push({
                 type:"text", text: s.shot_type.toUpperCase(),
-                position:"top-left", duration: 1.8, start: 0.2,
+                position:"top-left", duration: 1.8,
                 settings:{
                     "font-size":"14px","font-family":"Share Tech Mono","font-weight":"400",
                     "font-color":"rgba(255,255,255,0.7)","background-color":"rgba(0,0,0,0.5)",
@@ -1060,14 +1559,15 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
         // ── Lower Third con animación de entrada ──────────────────────────────
         if (withLower && s.lower) {
             const lt = makeLowerThird(s.lower, sceneDur - 0.5);
-            lt.start = 0.5; // entra 0.5s después del inicio de escena
+            // FIX: J2V no soporta "start" en elements → removido
             elements.push(lt);
         }
 
         // ── SFX ambient (feat. #7) ─────────────────────────────────────────────
         if (withSFX) {
             const sfxUrl = getSFX(s.sfx, guion.mood);
-            if (sfxUrl) elements.push({ type:"audio", src:sfxUrl, volume:0.07, duration:sceneDur, start:0.2 });
+            // FIX: J2V no soporta "start" en audio elements
+            if (sfxUrl) elements.push({ type:"audio", src:sfxUrl, volume:0.07, duration:sceneDur });
         }
 
         // ── SFX en transición ──────────────────────────────────────────────────
@@ -1083,7 +1583,7 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
         elements.push({
             type:"voice", model:"azure", voice:sceneVoice,
             text: s.text || "", volume: 1.5,
-            duration: sceneDur, start: 0.3,  // 0.3s de entrada antes de hablar
+            duration: sceneDur
         });
 
         // ── Música dinámica por capítulo (feat. v13) ───────────────────────────
@@ -1106,39 +1606,31 @@ async function assembleProject(guion, width=720, height=1280, opts={}) {
             duration: 5,
             transition: { style: "fade", duration: 1.2 },
             elements: [
-                // Fondo — última imagen muy oscurecida
+                // FIX: "extra" no existe en J2V → usar "settings". Sin transform, sin start, sin 100%
+                // Fondo — última imagen oscurecida
                 { type:"image", src: lastImg, on_error:"ignore", duration:5,
-                  extra:{"object-fit":"cover","filter":"brightness(0.15) blur(4px)"} },
-                // Overlay negro semi-trans para profundidad
+                  settings:{"object-fit":"cover"} },
+                // Overlay negro
                 { type:"text", text:" ", position:"center-center", duration:5,
-                  settings:{ "font-size":"1px","background-color":"rgba(0,0,0,0.6)",
-                             "width":"100%","height":"100%" } },
-                // Línea decorativa superior
-                { type:"text", text:"─".repeat(32), position:"center-center", duration:5, start:0.3,
-                  settings:{ "font-size":"18px","font-family":"Share Tech Mono",
-                             "font-color":"rgba(255,45,120,0.6)","background-color":"transparent",
-                             "text-align":"center","width":"900px",
-                             "transform":"translateY(-80px)" } },
-                // Título del video
-                { type:"text", text:(guion.title||"OMNIFORGE").toUpperCase(), position:"center-center", duration:5, start:0.5,
+                  settings:{ "font-size":"1px","background-color":"rgba(0,0,0,0.7)",
+                             "width":"960px","padding":"600px 40px" } },
+                // Título del video (posición top para simular centro)
+                { type:"text", text:(guion.title||"OMNIFORGE").toUpperCase(), position:"center-center", duration:5,
                   settings:{ "font-size":"38px","font-family":"Montserrat","font-weight":"700",
                              "font-color":"#ffffff","background-color":"transparent",
-                             "text-align":"center","letter-spacing":"4px","width":"900px",
-                             "text-shadow":"0 0 30px rgba(255,45,120,0.8)",
-                             "transform":"translateY(-20px)" } },
+                             "text-align":"center","letter-spacing":"4px","width":"900px" } },
                 // Sub-crédito
-                { type:"text", text:"GENERADO CON  OMNIFORGE AI", position:"center-center", duration:5, start:0.8,
+                { type:"text", text:"GENERADO CON OMNIFORGE AI", position:"bottom-center", duration:5,
                   settings:{ "font-size":"18px","font-family":"Share Tech Mono","font-weight":"400",
                              "font-color":"rgba(0,245,255,0.7)","background-color":"transparent",
-                             "text-align":"center","letter-spacing":"8px","width":"900px",
-                             "transform":"translateY(30px)" } },
+                             "text-align":"center","letter-spacing":"8px","width":"900px" } },
                 // Stats bar inferior
                 { type:"text",
                   text:`${(guion.mood||"").toUpperCase()}  ·  ${scenes.length} ESCENAS  ·  ${fps} FPS  ·  ${visualStyle.toUpperCase()}`,
-                  position:"bottom-center", duration:5, start:1.0,
-                  settings:{ "font-size":"14px","font-family":"Share Tech Mono",
+                  position:"bottom-center", duration:5,
+                  settings:{ "font-size":"13px","font-family":"Share Tech Mono",
                              "font-color":"rgba(255,255,255,0.35)","background-color":"transparent",
-                             "padding":"24px","text-align":"center","width":"900px","letter-spacing":"3px" } },
+                             "padding":"10px 24px","text-align":"center","width":"900px","letter-spacing":"3px" } },
             ]
         });
     }
@@ -1300,7 +1792,9 @@ app.post("/generate", limiterGenerate, async (req, res) => {
         dbUpdateProject(orderId, { status: "rendering" });
 
         log.header("Fase Final: Json2Video");
-        const resp = await axios.post("https://api.json2video.com/v2/movies", projectPayload,
+        // FIX #1 + #2 + #3: sanear el payload antes de enviarlo
+        const cleanPayload = sanitizeJ2VPayload(projectPayload, w, h);
+        const resp = await axios.post("https://api.json2video.com/v2/movies", cleanPayload,
             { headers:{ "x-api-key":CONFIG.JSON2VIDEO_KEY, "Content-Type":"application/json" }, timeout:45000 });
 
         const pid = resp.data.project || resp.data.id;
@@ -1308,6 +1802,14 @@ app.post("/generate", limiterGenerate, async (req, res) => {
 
         dbUpdateProject(orderId, { j2v_id: pid, thumbnail: thumbnailUrl || null });
         log.ok(`${C.bold}EXITO! ID: ${pid}${C.reset}`);
+
+        // ── Integraciones externas (Gmail + Calendar + Base44) ───────────────
+        const intData = { success:true, orderId, title:guion.title, mood:guion.mood,
+                          sceneCount, projectId:pid, thumbnail:thumbnailUrl,
+                          prompt:text, format:fmt, style:visualStyle };
+        runExternalIntegrations(intData)
+            .then(r => log.ok(`Integraciones: Gmail:${r.gmail} | Cal:${r.calendar?"✓":"—"} | Base44:${r.base44?"✓":"—"}`))
+            .catch(e => log.warn(`Integraciones: ${e.message}`));
 
         // Webhook
         if (webhookUrl) {
@@ -1323,6 +1825,9 @@ app.post("/generate", limiterGenerate, async (req, res) => {
         const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0,500) : e.message;
         log.error("Fallo en /generate", detail);
         dbUpdateProject(orderId, { status:"error" });
+        // Notificar error por Gmail/Calendar/Base44
+        runExternalIntegrations({ success:false, orderId, error:detail, prompt:text, format:fmt, style:visualStyle })
+            .catch(() => {});
         res.status(500).json({ error:detail });
     }
 });
@@ -1334,7 +1839,8 @@ async function runFullPipeline(job) {
     const { w, h } = FORMATS[opts.format] || FORMATS.portrait;
     const guion = await getScript(text, numEscenas, opts.tone||"epic and dramatic", opts);
     const { projectPayload } = await assembleProject(guion, w, h, opts);
-    const resp = await axios.post("https://api.json2video.com/v2/movies", projectPayload,
+    const cleanPayload = sanitizeJ2VPayload(projectPayload, w, h);   // FIX #1+#2+#3
+    const resp = await axios.post("https://api.json2video.com/v2/movies", cleanPayload,
         { headers:{ "x-api-key":CONFIG.JSON2VIDEO_KEY, "Content-Type":"application/json" }, timeout:45000 });
     const pid = resp.data.project || resp.data.id;
     log.ok(`Cola job ${job.jobId} completado: ${pid}`);
@@ -1830,22 +2336,177 @@ app.get("/queue", (req, res) => {
     });
 });
 
+// ── INTEGRATIONS TEST ────────────────────────────────────────────────────────
+// GET /integrations/test — verifica que Gmail, Calendar y Base44 estén configurados
+app.get("/integrations/test", async (req, res) => {
+    const gmailOk   = !!(CONFIG.GMAIL_USER && CONFIG.GMAIL_PASS && CONFIG.NOTIFY_EMAIL);
+    const calOk     = !!(process.env.GCAL_CLIENT_ID && process.env.GCAL_REFRESH_TOKEN);
+    const base44Ok  = !!(CONFIG.BASE44_API_KEY && CONFIG.BASE44_APP_ID);
+
+    // Test de conectividad real a Base44
+    let base44Ping = null;
+    if (base44Ok) {
+        try {
+            const r = await axios.get(`https://api.base44.com/api/apps/${CONFIG.BASE44_APP_ID}`,
+                { headers:{ "Authorization":`Bearer ${CONFIG.BASE44_API_KEY}` }, timeout:5000 });
+            base44Ping = r.status;
+        } catch(e) { base44Ping = e.response?.status || 0; }
+    }
+
+    res.json({
+        version: CONFIG.VERSION,
+        integrations: {
+            gmail:    { configured: gmailOk,  user: CONFIG.GMAIL_USER || "—" },
+            calendar: { configured: calOk,    calendarId: CONFIG.GCAL_CALENDAR_ID },
+            base44:   { configured: base44Ok, appId: CONFIG.BASE44_APP_ID || "—", ping: base44Ping },
+        },
+        publicUrl: CONFIG.PUBLIC_URL,
+        localhostIssue: CONFIG.PUBLIC_URL.includes("localhost"),
+    });
+});
+
+// ── SYNC: SQLite → Base44 (batch push de historial) ──────────────────────────
+// POST /integrations/sync  — sube los últimos N proyectos de SQLite a Base44
+// Útil para la primera vez que se conecta Base44 a un servidor ya existente
+app.post("/integrations/sync", async (req, res) => {
+    if (!CONFIG.BASE44_API_KEY || !CONFIG.BASE44_APP_ID) {
+        return res.status(400).json({ error: "BASE44_API_KEY / BASE44_APP_ID no configurados" });
+    }
+    if (!db) return res.status(503).json({ error: "SQLite no disponible" });
+
+    const limit = Math.min(parseInt(req.body.limit) || 50, 200);
+    const mode  = req.body.mode || "upsert"; // "upsert" | "insert_only"
+
+    try {
+        const projects = db.prepare(
+            "SELECT * FROM projects ORDER BY created_at DESC LIMIT ?"
+        ).all(limit);
+
+        let pushed = 0, skipped = 0, errors = 0;
+        const endpoint = `https://api.base44.com/api/apps/${CONFIG.BASE44_APP_ID}/entities/VideoProject`;
+        const headers  = { "Authorization": `Bearer ${CONFIG.BASE44_API_KEY}`, "Content-Type": "application/json" };
+
+        for (const p of projects) {
+            try {
+                const payload = {
+                    orderId:       p.id,
+                    title:         p.title        || "",
+                    prompt:        (p.prompt       || "").slice(0, 500),
+                    mood:          p.mood          || "epic",
+                    visualStyle:   p.style         || "cinematic",
+                    format:        p.format        || "portrait",
+                    sceneCount:    p.scenes        || 0,
+                    fps:           30,
+                    j2v_id:        p.j2v_id        || "",
+                    status:        p.status        || "pending",
+                    videoUrl:      p.video_url     || "",
+                    thumbnailUrl:  p.thumbnail     || "",
+                    durationSeconds: p.duration_s  || 0,
+                    version:       CONFIG.VERSION,
+                    createdAt:     p.created_at,
+                };
+                await axios.post(endpoint, payload, { headers, timeout: 8000 });
+                pushed++;
+            } catch(e) {
+                const code = e.response?.status;
+                if (code === 409 && mode === "insert_only") { skipped++; continue; }
+                if (code === 409) {
+                    // upsert: intentar PATCH si el registro ya existe
+                    try {
+                        await axios.patch(`${endpoint}/${p.id}`, { status: p.status, videoUrl: p.video_url||"" },
+                            { headers, timeout: 5000 });
+                        pushed++;
+                    } catch { errors++; }
+                } else { errors++; }
+            }
+        }
+        log.ok(`Sync Base44: ${pushed} pushed | ${skipped} skipped | ${errors} errors`);
+        res.json({ success: true, total: projects.length, pushed, skipped, errors });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ── METRICS: reporta health de servicios a Base44 ─────────────────────────────
+// POST /metrics/push — registra una métrica de sistema en Base44 (call periódico)
+app.post("/metrics/push", async (req, res) => {
+    const checks = [
+        { name:"openrouter",  url:"https://openrouter.ai/api/v1/models",                   headers:{ "Authorization":`Bearer ${CONFIG.OPENROUTER_KEY}` } },
+        { name:"json2video",  url:"https://api.json2video.com/v2/movies",                   headers:{ "x-api-key":CONFIG.JSON2VIDEO_KEY } },
+        { name:"aiml",        url:"https://api.aimlapi.com/v1/models",                      headers:{ "Authorization":`Bearer ${CONFIG.AICC_KEY}` } },
+        { name:"imgbb",       url:`https://api.imgbb.com/1/upload?key=${CONFIG.IMGBB_KEY}`, headers:{} },
+        { name:"pollinations",url:"https://image.pollinations.ai/",                         headers:{} },
+        { name:"picsum",      url:"https://picsum.photos/10/10.jpg",                        headers:{} },
+        { name:"soundhelix",  url:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", headers:{} },
+    ];
+
+    const results = await Promise.allSettled(
+        checks.map(async c => {
+            const t0 = Date.now();
+            try {
+                const r = await axios.head(c.url, { headers: c.headers, timeout: 6000 });
+                return { service:c.name, metricName:"response_time", value:Date.now()-t0,
+                         unit:"ms", status: r.status < 500 ? "online" : "degraded",
+                         responseMs: Date.now()-t0, recordedAt: new Date().toISOString() };
+            } catch(e) {
+                const code = e.response?.status;
+                return { service:c.name, metricName:"response_time", value:Date.now()-t0,
+                         unit:"ms", status: (code && code < 500) ? "degraded" : "offline",
+                         responseMs: Date.now()-t0, recordedAt: new Date().toISOString() };
+            }
+        })
+    );
+
+    const metrics = results.map(r => r.value || r.reason);
+
+    // Push a Base44 si está configurado
+    if (CONFIG.BASE44_API_KEY && CONFIG.BASE44_APP_ID) {
+        const endpoint = `https://api.base44.com/api/apps/${CONFIG.BASE44_APP_ID}/entities/SystemMetric`;
+        await Promise.allSettled(metrics.map(m =>
+            axios.post(endpoint, m, {
+                headers:{ "Authorization":`Bearer ${CONFIG.BASE44_API_KEY}`, "Content-Type":"application/json" },
+                timeout: 5000,
+            })
+        ));
+        log.info(`Metrics: ${metrics.length} registradas en Base44`);
+    }
+
+    res.json({ metrics });
+});
+
+// Métricas periódicas — cada 5 min si Base44 está configurado
+setInterval(() => {
+    if (CONFIG.BASE44_API_KEY && CONFIG.BASE44_APP_ID) {
+        axios.post(`http://127.0.0.1:${CONFIG.PORT}/metrics/push`, {}, { timeout: 30000 })
+            .catch(() => {});
+    }
+}, 5 * 60 * 1000);
+
 // ── SWAGGER DOCS ─────────────────────────────────────────────────────────────
 const swaggerDoc = {
     openapi: "3.0.0",
-    info: { title: "OmniForge API", version: CONFIG.VERSION, description: "Pipeline de video IA" },
-    servers: [{ url: `http://localhost:${CONFIG.PORT}` }],
+    info: { title: "OmniForge API", version: CONFIG.VERSION,
+            description: "Pipeline de video IA — v13.1 con fixes J2V + conectores Figma/Base44/Gmail/Calendar" },
+    servers: [{ url: `http://localhost:${CONFIG.PORT}` }, { url: CONFIG.PUBLIC_URL }],
     paths: {
-        "/generate":      { post: { summary: "Genera un video completo", tags:["Core"] } },
-        "/preview":       { post: { summary: "Preview de la primera escena (rápido)", tags:["Core"] } },
-        "/rerender-scene":{ post: { summary: "Re-renderiza una escena individual", tags:["Core"] } },
-        "/status/{id}":   { get:  { summary: "Consulta estado del render en Json2Video", tags:["Status"] } },
-        "/history":       { get:  { summary: "Historial de proyectos generados", tags:["History"] } },
-        "/templates":     { get:  { summary: "Plantillas de configuración", tags:["Templates"] },
-                           post:  { summary: "Guarda una nueva plantilla", tags:["Templates"] } },
-        "/queue":         { get:  { summary: "Estado de la cola de procesamiento", tags:["Queue"] },
-                           post:  { summary: "Agrega un job a la cola", tags:["Queue"] } },
-        "/health":        { get:  { summary: "Estado del servidor", tags:["System"] } },
+        "/generate":           { post:  { summary:"Pipeline completo → video renderizado",                 tags:["Core"] } },
+        "/preview":            { post:  { summary:"Preview escena 1 (rápido)",                             tags:["Core"] } },
+        "/rerender-scene":     { post:  { summary:"Re-renderiza escena individual",                        tags:["Core"] } },
+        "/status/{id}":        { get:   { summary:"Estado del render en Json2Video",                       tags:["Status"] } },
+        "/progress/{orderId}": { get:   { summary:"SSE live preview de imágenes por escena",               tags:["Status"] } },
+        "/history":            { get:   { summary:"Historial de proyectos (SQLite)",                       tags:["History"] } },
+        "/history/{id}":       { delete:{ summary:"Eliminar proyecto del historial",                       tags:["History"] } },
+        "/templates":          { get:   { summary:"Plantillas (6 default + custom)",                       tags:["Templates"] },
+                                 post:  { summary:"Guardar nueva plantilla",                               tags:["Templates"] } },
+        "/templates/{id}":     { delete:{ summary:"Eliminar plantilla",                                    tags:["Templates"] } },
+        "/queue":              { get:   { summary:"Estado de la cola async",                               tags:["Queue"] },
+                                 post:  { summary:"Agregar job a la cola",                                 tags:["Queue"] } },
+        "/health":             { get:   { summary:"Health check básico",                                   tags:["System"] } },
+        "/health/detail":      { get:   { summary:"Health detallado con latencia por servicio",            tags:["System"] } },
+        "/integrations/test":  { get:   { summary:"Verifica config Gmail / Calendar / Base44",             tags:["Integrations"] } },
+        "/integrations/sync":  { post:  { summary:"Sube historial SQLite → Base44 en batch",              tags:["Integrations"] } },
+        "/metrics/push":       { post:  { summary:"Registra métricas de servicios en Base44",              tags:["Integrations"] } },
+        "/api-docs":           { get:   { summary:"Documentación Swagger UI",                              tags:["Docs"] } },
     }
 };
 
