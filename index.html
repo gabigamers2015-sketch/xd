@@ -1,0 +1,3886 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNIFORGE — AI Video Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════════ */
+:root {
+  --c0: #08051a;
+  --c1: #0e0929;
+  --c2: #160d3a;
+  --pink:   #ff2d78;
+  --cyan:   #00f5ff;
+  --purple: #9d4edd;
+  --lime:   #b5ff2d;
+  --orange: #ff7c2d;
+  --yellow: #ffe033;
+  --green:  #39ff6a;
+  --red:    #ff3b5c;
+  --fg:     #ffffff;
+  --fg2:    rgba(255,255,255,0.6);
+  --fg3:    rgba(255,255,255,0.25);
+  --display: 'Bebas Neue', sans-serif;
+  --mono:    'Space Mono', monospace;
+  --sans:    'Space Grotesk', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+
+body {
+  font-family: var(--sans);
+  background:
+    radial-gradient(ellipse 90% 55% at 15% 0%,    rgba(157,78,221,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 45% at 85% 8%,    rgba(255,45,120,0.16) 0%, transparent 50%),
+    radial-gradient(ellipse 55% 55% at 75% 92%,   rgba(0,245,255,0.13)  0%, transparent 55%),
+    radial-gradient(ellipse 70% 40% at 5%  85%,   rgba(255,124,45,0.13) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 35% at 50% 50%,   rgba(57,255,106,0.06) 0%, transparent 50%),
+    var(--c0);
+  color: var(--fg);
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+button, a { cursor: crosshair; }
+button { border: none; background: none; }
+a { text-decoration: none; color: inherit; }
+textarea { font-family: var(--mono); }
+
+/* ══════════════════════════════════════════════════
+   ANIMATED BACKGROUND
+══════════════════════════════════════════════════ */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Orbs de color que flotan */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.28;
+  animation: orbFloat linear infinite;
+}
+.orb1 { width: 700px; height: 700px; background: radial-gradient(circle, var(--pink), var(--purple));   top: -250px; left: -120px; animation-duration: 18s; }
+.orb2 { width: 600px; height: 600px; background: radial-gradient(circle, var(--cyan), #0044ff);   top: 35%;    right: -180px; animation-duration: 22s; animation-delay: -8s; }
+.orb3 { width: 500px; height: 500px; background: radial-gradient(circle, var(--purple), var(--pink)); bottom: -120px; left: 25%; animation-duration: 26s; animation-delay: -4s; }
+.orb4 { width: 380px; height: 380px; background: radial-gradient(circle, var(--orange), var(--yellow)); top: 20%;    left: 42%;  animation-duration: 14s; animation-delay: -12s; }
+.orb5 { width: 300px; height: 300px; background: radial-gradient(circle, var(--lime), var(--cyan)); top: 60%;    left: 5%;  animation-duration: 20s; animation-delay: -6s; opacity: 0.18; }
+.orb6 { width: 250px; height: 250px; background: radial-gradient(circle, #ff6b35, var(--red)); bottom: 15%; right: 10%; animation-duration: 16s; animation-delay: -10s; opacity: 0.20; }
+
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(40px, -60px) scale(1.05); }
+  50%  { transform: translate(-30px, 40px) scale(0.95); }
+  75%  { transform: translate(60px, 20px) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* Grid de puntos animado */
+.bg-grid {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridShift 20s linear infinite;
+}
+@keyframes gridShift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+/* Líneas de scan horizontal */
+.scanline {
+  position: absolute; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--pink), var(--purple), transparent);
+  opacity: 0.3;
+  animation: scanDown linear infinite;
+}
+.scanline:nth-child(1) { animation-duration: 8s;  animation-delay: 0s; }
+.scanline:nth-child(2) { animation-duration: 12s; animation-delay: -3s; opacity: 0.15; }
+.scanline:nth-child(3) { animation-duration: 6s;  animation-delay: -5s; opacity: 0.2; }
+@keyframes scanDown {
+  0%   { top: -2px; }
+  100% { top: 100%; }
+}
+
+/* Partículas flotantes */
+.particle {
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  animation: particleRise linear infinite;
+  opacity: 0;
+}
+@keyframes particleRise {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-100vh) translateX(var(--drift)); opacity: 0; }
+}
+
+/* ══════════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════════ */
+.app {
+  position: relative; z-index: 1;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 28px 28px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+/* ══════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════ */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+}
+
+/* línea animada debajo del header */
+header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 0;
+  height: 1px;
+  width: 40%;
+  background: linear-gradient(90deg, var(--pink), var(--cyan), var(--purple));
+  animation: headerLine 4s ease-in-out infinite alternate;
+}
+@keyframes headerLine {
+  0%   { width: 20%; opacity: 0.6; }
+  100% { width: 70%; opacity: 1; }
+}
+
+.logo { display: flex; align-items: center; gap: 16px; }
+
+.logo-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  animation: iconPulse 3s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+.logo-icon::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255,255,255,0.3), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer { 0%,60%{ transform:translateX(-100%); } 80%{ transform:translateX(100%); } 100%{ transform:translateX(100%); } }
+@keyframes iconPulse {
+  0%,100% { box-shadow: 0 0 20px rgba(255,45,120,0.4); }
+  50%      { box-shadow: 0 0 40px rgba(255,45,120,0.7), 0 0 80px rgba(157,78,221,0.3); }
+}
+
+.logo-text { display: flex; flex-direction: column; }
+.logo-name {
+  font-family: var(--display);
+  font-size: 2.2rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  background: linear-gradient(90deg, var(--fg), var(--pink), var(--cyan));
+  background-size: 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 5s ease-in-out infinite alternate;
+}
+@keyframes gradientShift {
+  0%   { background-position: 0%; }
+  100% { background-position: 100%; }
+}
+.logo-sub {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--fg3);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+/* header pills */
+.header-pills { display: flex; gap: 10px; align-items: center; }
+
+.pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(10px);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.pill::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  transform: translateX(-100%);
+  animation: pillShine 4s ease-in-out infinite;
+}
+@keyframes pillShine { 0%,70%{transform:translateX(-100%)} 90%{transform:translateX(100%)} 100%{transform:translateX(100%)} }
+
+.pill-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+.pill-dot.green  { background: #39ff6a; box-shadow: 0 0 8px #39ff6a; }
+.pill-dot.pink   { background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+.pill-dot.cyan   { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+@keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+
+.pill-label { color: var(--fg2); }
+.pill-value { color: var(--fg); font-weight: 700; }
+.pill-value.live { color: #39ff6a; }
+
+/* ══════════════════════════════════════════════════
+   MAIN GRID
+══════════════════════════════════════════════════ */
+.main {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  min-height: 700px;
+}
+
+/* ══════════════════════════════════════════════════
+   GLASS PANEL
+══════════════════════════════════════════════════ */
+.panel {
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(30px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.4s;
+}
+.panel:hover { border-color: rgba(255,255,255,0.13); }
+
+/* borde animado en el panel */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 20px;
+  padding: 1px;
+  background: linear-gradient(var(--angle, 0deg), var(--pink), var(--cyan), var(--purple), var(--orange), var(--pink));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  animation: borderRotate 6s linear infinite, borderFade 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes borderRotate { to { --angle: 360deg; } }
+@keyframes borderFade { 0%,100%{opacity:0} 50%{opacity:0.5} }
+
+@property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg3);
+}
+
+.panel-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+  animation: badgePulse 3s ease-in-out infinite;
+}
+@keyframes badgePulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+.panel-body {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+}
+
+/* ══════════════════════════════════════════════════
+   LEFT: INPUT PANEL
+══════════════════════════════════════════════════ */
+.field-label {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.textarea-wrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.textarea-wrap::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,45,120,0.08), rgba(0,245,255,0.08));
+  pointer-events: none;
+  animation: textareaGlow 4s ease-in-out infinite alternate;
+}
+@keyframes textareaGlow {
+  0%   { background: linear-gradient(135deg, rgba(255,45,120,0.05), rgba(0,245,255,0.05)); }
+  100% { background: linear-gradient(135deg, rgba(157,78,221,0.1), rgba(255,124,45,0.08)); }
+}
+
+#promptInput {
+  width: 100%;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.7;
+  padding: 14px 16px;
+  resize: none;
+  height: 150px;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  position: relative;
+}
+#promptInput:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 20px rgba(255,45,120,0.15), inset 0 0 20px rgba(255,45,120,0.05);
+}
+#promptInput::placeholder { color: var(--fg3); }
+
+/* scenes */
+.scene-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+/* format selector */
+.format-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.format-btn {
+  padding: 10px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--fg2);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: all 0.25s;
+}
+.format-btn .fmt-icon { font-size: 1.1rem; line-height: 1; }
+.format-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--fg); }
+.format-btn.active {
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border-color: transparent; color: #fff;
+  box-shadow: 0 0 16px rgba(0,245,255,0.3);
+}
+
+.scene-btn {
+  padding: 12px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--fg2);
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 700;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.scene-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.scene-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--fg); }
+.scene-btn:hover::after { opacity: 0.12; }
+.scene-btn.active {
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255,45,120,0.4);
+  animation: scenePop 0.3s ease;
+}
+.scene-btn.active::after { display: none; }
+@keyframes scenePop { 0%{transform:scale(0.92)} 60%{transform:scale(1.04)} 100%{transform:scale(1)} }
+
+/* telemetry bars */
+.telem-section { display: flex; flex-direction: column; gap: 12px; }
+.telem-row { display: flex; flex-direction: column; gap: 6px; }
+.telem-top { display: flex; justify-content: space-between; align-items: baseline; }
+.telem-key { font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.15em; color: var(--fg3); }
+.telem-val { font-family: var(--mono); font-size: 0.68rem; }
+.telem-bar { height: 3px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; position: relative; }
+.telem-fill {
+  height: 100%; border-radius: 3px;
+  width: 0%;
+  transition: width 0.8s ease;
+  position: relative;
+}
+.telem-fill::after {
+  content: '';
+  position: absolute; right: 0; top: -2px;
+  width: 6px; height: 7px;
+  border-radius: 50%;
+  background: inherit;
+  filter: blur(2px);
+  box-shadow: 0 0 6px currentColor;
+}
+.tf-pink   { background: linear-gradient(90deg, var(--purple), var(--pink)); }
+.tf-cyan   { background: linear-gradient(90deg, var(--cyan), var(--lime)); width: 42% !important; animation: telemWave1 3s ease-in-out infinite; }
+.tf-orange { background: linear-gradient(90deg, var(--orange), var(--yellow)); width: 0%; }
+
+@keyframes telemWave1 {
+  0%,100% { width: 38%; } 50% { width: 56%; }
+}
+
+/* EXECUTE BUTTON — the star of the show */
+.btn-execute {
+  width: 100%;
+  padding: 18px;
+  border-radius: 14px;
+  font-family: var(--display);
+  font-size: 1.4rem;
+  letter-spacing: 0.15em;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  margin-top: auto;
+  transition: transform 0.2s, box-shadow 0.3s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.btn-execute-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--pink), var(--purple), var(--cyan), var(--pink));
+  background-size: 300%;
+  animation: btnGradient 4s ease-in-out infinite;
+}
+.btn-execute-glow {
+  position: absolute; inset: -2px;
+  background: linear-gradient(135deg, var(--pink), var(--purple), var(--cyan));
+  background-size: 300%;
+  border-radius: 14px;
+  animation: btnGradient 4s ease-in-out infinite;
+  filter: blur(12px);
+  opacity: 0.5;
+  z-index: -1;
+  animation: btnGlow 4s ease-in-out infinite;
+}
+@keyframes btnGradient { 0%{background-position:0%} 50%{background-position:100%} 100%{background-position:0%} }
+@keyframes btnGlow { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
+
+.btn-execute-shine {
+  position: absolute; top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  transform: skewX(-20deg);
+  animation: btnShine 3s ease-in-out infinite;
+}
+@keyframes btnShine { 0%,60%{left:-100%} 80%{left:140%} 100%{left:140%} }
+
+.btn-execute-text { position: relative; z-index: 1; }
+.btn-execute svg  { position: relative; z-index: 1; }
+
+.btn-execute:hover:not(:disabled) { transform: translateY(-2px) scale(1.01); }
+.btn-execute:hover:not(:disabled) .btn-execute-glow { opacity: 0.9; }
+.btn-execute:active:not(:disabled) { transform: scale(0.98); }
+.btn-execute:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════
+   RIGHT: OUTPUT PANEL STATES
+══════════════════════════════════════════════════ */
+
+/* IDLE */
+#stateIdle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px;
+  text-align: center;
+}
+
+.idle-ring {
+  position: relative;
+  width: 120px; height: 120px;
+}
+.idle-ring-inner {
+  position: absolute; inset: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255,45,120,0.15), rgba(0,245,255,0.15));
+  display: flex; align-items: center; justify-content: center;
+  animation: ringPulse 3s ease-in-out infinite;
+}
+@keyframes ringPulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(0.9); opacity: 0.7; }
+}
+.idle-ring svg { color: var(--fg2); }
+
+.ring-orbit {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: var(--pink);
+  border-right-color: var(--cyan);
+  animation: orbitSpin 4s linear infinite;
+}
+.ring-orbit2 {
+  position: absolute; inset: 6px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.1);
+  animation: orbitSpin 8s linear infinite reverse;
+}
+@keyframes orbitSpin { to { transform: rotate(360deg); } }
+
+/* punto que orbita */
+.ring-dot {
+  position: absolute;
+  top: -4px; left: 50%;
+  margin-left: -4px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 10px var(--pink);
+  animation: orbitSpin 4s linear infinite;
+  transform-origin: 4px 64px;
+}
+.ring-dot2 {
+  position: absolute;
+  bottom: -4px; left: 50%;
+  margin-left: -4px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+  animation: orbitSpin 6s linear infinite reverse;
+  transform-origin: 3px -57px;
+}
+
+.idle-title {
+  font-family: var(--display);
+  font-size: 5rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--fg), var(--pink), var(--cyan), var(--purple));
+  background-size: 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 6s ease-in-out infinite alternate;
+}
+.idle-sub {
+  font-size: 0.85rem;
+  color: var(--fg2);
+  max-width: 400px;
+  line-height: 1.8;
+  font-weight: 300;
+}
+
+/* feature chips */
+.idle-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  border: 1px solid;
+  animation: chipFloat ease-in-out infinite alternate;
+}
+.chip1 { border-color: rgba(255,45,120,0.4);  color: var(--pink);   animation-duration: 2.8s; }
+.chip2 { border-color: rgba(0,245,255,0.4);   color: var(--cyan);   animation-duration: 3.2s; animation-delay: 0.3s; }
+.chip3 { border-color: rgba(157,78,221,0.4);  color: var(--purple); animation-duration: 2.4s; animation-delay: 0.6s; }
+.chip4 { border-color: rgba(181,255,45,0.4);  color: var(--lime);   animation-duration: 3.6s; animation-delay: 0.9s; }
+@keyframes chipFloat { 0%{transform:translateY(0)} 100%{transform:translateY(-6px)} }
+
+.idle-hint {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--fg3);
+  letter-spacing: 0.15em;
+  padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  animation: hintBlink 4s ease-in-out infinite;
+}
+@keyframes hintBlink { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+/* PROCESSING */
+#stateProcessing {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 32px;
+  gap: 20px;
+}
+
+.proc-top { display: flex; justify-content: space-between; align-items: flex-start; }
+
+.proc-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,45,120,0.1);
+  border: 1px solid rgba(255,45,120,0.3);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  color: var(--pink);
+  animation: badgeBounce 2s ease-in-out infinite;
+}
+@keyframes badgeBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+.proc-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 8px var(--pink);
+  animation: dotPulse 1s ease-in-out infinite;
+}
+
+.proc-pct {
+  font-family: var(--display);
+  font-size: 8rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: all 0.5s;
+  user-select: none;
+}
+.proc-pct.hot {
+  background: linear-gradient(135deg, var(--pink), var(--purple), var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.proc-title {
+  font-family: var(--display);
+  font-size: 3rem;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+}
+.proc-title .acc { background: linear-gradient(90deg, var(--pink), var(--cyan)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* progress bar */
+.progress-wrap { position: relative; }
+.progress-track {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.progress-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--pink), var(--purple), var(--cyan));
+  background-size: 200%;
+  width: 0%;
+  transition: width 0.5s ease;
+  animation: progressShimmer 2s linear infinite;
+  position: relative;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute; right: -4px; top: -4px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px var(--cyan), 0 0 24px var(--cyan);
+  filter: blur(2px);
+}
+@keyframes progressShimmer { 0%{background-position:0%} 100%{background-position:200%} }
+
+/* phase cards */
+.phase-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+.phase-card {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.phase-card.active-phase {
+  border-color: rgba(255,45,120,0.4);
+  background: rgba(255,45,120,0.05);
+  animation: cardPulse 1.5s ease-in-out infinite;
+}
+.phase-card.done-phase { border-color: rgba(57,255,106,0.3); background: rgba(57,255,106,0.04); }
+@keyframes cardPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,45,120,0); }
+  50%      { box-shadow: 0 0 12px 2px rgba(255,45,120,0.2); }
+}
+
+.phase-name { font-family: var(--mono); font-size: 0.55rem; color: var(--fg3); letter-spacing: 0.15em; text-transform: uppercase; }
+.phase-status { font-family: var(--mono); font-size: 0.75rem; font-weight: 700; color: var(--fg3); transition: color 0.3s; }
+.phase-status.ps-active { color: var(--pink); animation: statusBlink 0.8s ease-in-out infinite; }
+.phase-status.ps-done   { color: #39ff6a; }
+.phase-status.ps-error  { color: #ff3b3b; }
+@keyframes statusBlink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+.proc-detail {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--fg3);
+  letter-spacing: 0.12em;
+  text-align: center;
+  margin-top: auto;
+  animation: detailScroll 0.5s ease;
+}
+@keyframes detailScroll { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+/* DONE */
+#stateDone {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 20px;
+  gap: 14px;
+}
+.video-wrap {
+  flex: 1;
+  background: #000;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  position: relative;
+  min-height: 280px;
+}
+#outputVideo { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.done-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  flex-shrink: 0;
+}
+.done-title { font-family: var(--display); font-size: 1.4rem; letter-spacing: 0.06em; }
+.done-id { font-family: var(--mono); font-size: 0.58rem; color: var(--fg3); letter-spacing: 0.1em; margin-top: 2px; }
+.done-actions { display: flex; gap: 8px; }
+
+.btn-ghost {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--fg2);
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: var(--fg); background: rgba(255,255,255,0.07); }
+
+.btn-dl {
+  padding: 8px 20px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 0 20px rgba(255,45,120,0.3);
+}
+.btn-dl:hover { transform: translateY(-1px); box-shadow: 0 0 30px rgba(255,45,120,0.5); }
+
+/* ══════════════════════════════════════════════════
+   TOASTS
+══════════════════════════════════════════════════ */
+#toasts {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  pointer-events: none;
+}
+.toast {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid;
+  backdrop-filter: blur(20px);
+  white-space: nowrap;
+  animation: toastIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+.toast.success { background: rgba(57,255,106,0.1);  border-color: rgba(57,255,106,0.4);  color: #39ff6a; }
+.toast.error   { background: rgba(255,59,59,0.1);   border-color: rgba(255,59,59,0.4);   color: #ff3b3b; }
+.toast.info    { background: rgba(0,245,255,0.08);  border-color: rgba(0,245,255,0.4);   color: var(--cyan); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ══════════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* ── STYLE CARDS (visual style selector) ─────────────────────────────────── */
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.style-card {
+  --card-color: #ff2d78;
+  padding: 12px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: crosshair; transition: all 0.2s;
+  position: relative; overflow: hidden;
+}
+.style-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--card-color);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.style-card:hover::before { opacity: 0.08; }
+.style-card.active {
+  border-color: var(--card-color);
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--card-color) 40%, transparent);
+}
+.style-card.active::before { opacity: 0.12; }
+.style-icon { font-size: 1.4rem; line-height: 1; position: relative; z-index: 1; }
+.style-name {
+  font-family: var(--mono); font-size: 0.58rem;
+  letter-spacing: 0.1em; color: var(--fg2);
+  position: relative; z-index: 1;
+}
+.style-card.active .style-name { color: var(--fg); font-weight: 700; }
+
+/* ── TOGGLE SWITCH ─────────────────────────────────────────────────────────── */
+.toggle-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.toggle-label {
+  display: flex; align-items: center; gap: 10px;
+  cursor: crosshair;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--fg2);
+}
+.toggle-label input[type="checkbox"] { display: none; }
+.toggle-track {
+  width: 36px; height: 20px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle-label input:checked + .toggle-track {
+  background: rgba(255,45,120,0.3);
+}
+.toggle-label input:checked + .toggle-track::after {
+  transform: translateX(16px);
+  background: var(--pink);
+  box-shadow: 0 0 8px var(--pink);
+}
+
+
+/* ── LIVE IMAGE STRIP (SSE real-time preview) ─────────────────────────────── */
+#imageStrip::-webkit-scrollbar { height: 4px; }
+#imageStrip::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.strip-img {
+  flex-shrink: 0;
+  width: 60px; height: 100px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(255,45,120,0.3);
+  animation: stripPop 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes stripPop {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.strip-placeholder {
+  flex-shrink: 0;
+  width: 60px; height: 100px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.55rem; color: var(--fg3);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔥 OMNIFORGE ULTRA UI — INJECTION LAYER v3.0
+   Cursor, Circuit Paths, Neural Nodes, Holographic Panels,
+   Glitch Typography, DNA Progress, Magnetic Buttons, Matrix Rain,
+   Waveform Visualizer, Typing Labels, Corner Brackets, Neon Signature
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── CUSTOM CURSOR ──────────────────────────────────────────────────────── */
+* { cursor: none !important; }
+#cursor-dot {
+  position: fixed; z-index: 99999;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px var(--cyan), 0 0 30px rgba(0,245,255,0.4);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: transform 0.05s;
+}
+#cursor-ring {
+  position: fixed; z-index: 99998;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,245,255,0.5);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: all 0.15s ease;
+}
+#cursor-ring.clicking {
+  transform: translate(-50%, -50%) scale(0.6);
+  border-color: var(--pink);
+  box-shadow: 0 0 20px rgba(255,45,120,0.5);
+}
+.cursor-trail {
+  position: fixed; z-index: 99997;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: trailFade 0.6s ease forwards;
+}
+@keyframes trailFade {
+  0%   { opacity: 0.6; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0;   transform: translate(-50%,-50%) scale(0.1); }
+}
+
+/* ── CIRCUIT PATHS ──────────────────────────────────────────────────────── */
+#circuit-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none; opacity: 0.18;
+}
+
+/* ── NEURAL NODES ───────────────────────────────────────────────────────── */
+.neural-node {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: neuralDrift ease-in-out infinite;
+}
+@keyframes neuralDrift {
+  0%, 100% { transform: translate(0, 0); }
+  33%       { transform: translate(var(--dx1), var(--dy1)); }
+  66%       { transform: translate(var(--dx2), var(--dy2)); }
+}
+
+/* ── GLITCH TEXT ────────────────────────────────────────────────────────── */
+.glitch {
+  position: relative;
+  animation: glitchMain 8s ease-in-out infinite;
+}
+.glitch::before, .glitch::after {
+  content: attr(data-text);
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.glitch::before {
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: glitchBefore 8s ease-in-out infinite;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+}
+.glitch::after {
+  background: linear-gradient(135deg, var(--cyan), var(--lime));
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: glitchAfter 8s ease-in-out infinite;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+}
+@keyframes glitchMain {
+  0%,90%,100%  { transform: translate(0); filter: none; }
+  91%          { transform: translate(-2px,1px); filter: hue-rotate(90deg); }
+  92%          { transform: translate(2px,-1px); filter: hue-rotate(-90deg); }
+  93%          { transform: translate(0); filter: none; }
+  96%          { transform: translate(-3px,2px); filter: hue-rotate(180deg); }
+  97%          { transform: translate(3px,-2px); }
+  98%          { transform: translate(0); filter: none; }
+}
+@keyframes glitchBefore {
+  0%,90%,100%  { transform: translate(0); opacity: 0; }
+  91%          { transform: translate(-4px,2px); opacity: 0.8; }
+  92%,93%      { transform: translate(4px,-1px); opacity: 0.6; }
+  94%          { transform: translate(0); opacity: 0; }
+}
+@keyframes glitchAfter {
+  0%,92%,100%  { transform: translate(0); opacity: 0; }
+  93%          { transform: translate(3px,-2px); opacity: 0.7; }
+  94%,95%      { transform: translate(-3px,2px); opacity: 0.5; }
+  96%          { transform: translate(0); opacity: 0; }
+}
+
+/* ── HOLOGRAPHIC PANEL SHEEN ────────────────────────────────────────────── */
+.panel { overflow: hidden; }
+.panel::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg,
+    transparent 0%,
+    rgba(255,255,255,0.015) 30%,
+    rgba(0,245,255,0.03) 50%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: holoSheen 8s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+@keyframes holoSheen {
+  0%,70%   { transform: translateX(-100%) skewX(-15deg); }
+  85%      { transform: translateX(200%)  skewX(-15deg); }
+  100%     { transform: translateX(200%)  skewX(-15deg); }
+}
+
+/* ── CORNER BRACKETS ────────────────────────────────────────────────────── */
+.panel { position: relative; }
+.panel .corner { position: absolute; width: 14px; height: 14px; }
+.panel .corner-tl { top: -1px;    left: -1px;    border-top: 2px solid var(--pink);    border-left:   2px solid var(--pink); }
+.panel .corner-tr { top: -1px;    right: -1px;   border-top: 2px solid var(--cyan);    border-right:  2px solid var(--cyan); }
+.panel .corner-bl { bottom: -1px; left: -1px;    border-bottom: 2px solid var(--cyan); border-left:   2px solid var(--cyan); }
+.panel .corner-br { bottom: -1px; right: -1px;   border-bottom: 2px solid var(--pink); border-right:  2px solid var(--pink); }
+
+/* ── WAVEFORM VISUALIZER ────────────────────────────────────────────────── */
+#waveform {
+  display: flex; align-items: center; justify-content: center;
+  gap: 3px; height: 32px; overflow: hidden;
+}
+.wave-bar {
+  width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--cyan), var(--purple));
+  animation: wavePulse ease-in-out infinite alternate;
+  transform-origin: bottom;
+}
+@keyframes wavePulse {
+  from { height: 4px;  opacity: 0.4; }
+  to   { height: var(--wh); opacity: 1; }
+}
+
+/* ── DNA HELIX LOADER ───────────────────────────────────────────────────── */
+#dna-loader {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px; height: 120px; justify-content: center;
+}
+.dna-pair {
+  display: flex; align-items: center; gap: 0; width: 60px;
+  animation: dnaRotate 2s linear infinite;
+}
+@keyframes dnaRotate {
+  0%   { transform: perspective(200px) rotateY(0deg); }
+  100% { transform: perspective(200px) rotateY(360deg); }
+}
+.dna-node {
+  width: 10px; height: 10px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.dna-node-l { background: var(--pink);   box-shadow: 0 0 8px var(--pink); }
+.dna-node-r { background: var(--cyan);   box-shadow: 0 0 8px var(--cyan); }
+.dna-bridge {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--pink), transparent 40%, transparent 60%, var(--cyan));
+  opacity: 0.6;
+}
+
+/* ── MAGNETIC BUTTON EFFECT ─────────────────────────────────────────────── */
+.btn-execute { transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1) !important; }
+
+/* ── NEON SIGNATURE ─────────────────────────────────────────────────────── */
+.neon-sig {
+  position: fixed; bottom: 14px; right: 18px; z-index: 10;
+  font-family: var(--mono); font-size: 0.5rem;
+  letter-spacing: 0.2em; color: rgba(0,245,255,0.2);
+  text-transform: uppercase;
+  animation: sigPulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes sigPulse {
+  0%,100% { opacity: 0.2; text-shadow: none; }
+  50%     { opacity: 0.5; text-shadow: 0 0 10px rgba(0,245,255,0.4); }
+}
+
+/* ── TYPING CURSOR ──────────────────────────────────────────────────────── */
+.typing-cursor {
+  display: inline-block;
+  width: 2px; height: 1em;
+  background: var(--cyan);
+  margin-left: 2px;
+  animation: blinkCursor 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blinkCursor { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── STAT COUNTERS ──────────────────────────────────────────────────────── */
+.stat-counter {
+  font-family: var(--display); font-size: 2.4rem;
+  background: linear-gradient(135deg, var(--fg), var(--cyan));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+}
+
+/* ── LIVE INDICATOR BADGES ──────────────────────────────────────────────── */
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(57,255,106,0.3);
+  background: rgba(57,255,106,0.08);
+  font-family: var(--mono); font-size: 0.55rem;
+  color: #39ff6a; letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.live-badge::before {
+  content: '';
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #39ff6a;
+  box-shadow: 0 0 8px #39ff6a;
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+/* ── ENERGY RINGS on LOGO ───────────────────────────────────────────────── */
+.logo-rings {
+  position: absolute; inset: -16px;
+  pointer-events: none;
+}
+.logo-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  animation: ringExpand ease-out infinite;
+}
+.logo-ring:nth-child(1) { border-color: rgba(255,45,120,0.6);  animation-duration: 2.4s; animation-delay: 0s; }
+.logo-ring:nth-child(2) { border-color: rgba(0,245,255,0.4);  animation-duration: 2.4s; animation-delay: 0.8s; }
+.logo-ring:nth-child(3) { border-color: rgba(157,78,221,0.3); animation-duration: 2.4s; animation-delay: 1.6s; }
+@keyframes ringExpand {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* ── MATRIX RAIN OVERLAY ────────────────────────────────────────────────── */
+#matrix-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none; opacity: 0.04;
+}
+
+/* ── ADVANCED OPTIONS PANEL ENHANCED ───────────────────────────────────── */
+.adv-section { border-radius: 14px; overflow: hidden; }
+.adv-toggle {
+  width: 100%; padding: 13px 16px;
+  border-radius: 12px;
+  background: rgba(0,245,255,0.04);
+  border: 1px solid rgba(0,245,255,0.12);
+  color: var(--fg2);
+  font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px;
+  transition: all 0.2s;
+}
+.adv-toggle:hover { border-color: rgba(0,245,255,0.3); color: var(--fg); background: rgba(0,245,255,0.06); }
+.adv-toggle.open  { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-color: rgba(0,245,255,0.2); }
+.adv-arrow { margin-left: auto; transition: transform 0.3s; }
+.adv-toggle.open .adv-arrow { transform: rotate(180deg); }
+.adv-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0,245,255,0.12); border-top: none;
+  border-radius: 0 0 12px 12px;
+  background: rgba(0,0,0,0.3);
+}
+.adv-body.open { max-height: 1200px; }
+.adv-row { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.adv-row:last-child { border-bottom: none; }
+.adv-label {
+  display: block; margin-bottom: 10px;
+  font-family: var(--mono); font-size: 0.6rem;
+  letter-spacing: 0.15em; color: var(--fg3);
+  text-transform: uppercase;
+}
+.adv-range {
+  width: 100%; height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px; outline: none;
+  -webkit-appearance: none; cursor: crosshair;
+}
+.adv-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--pink), var(--cyan));
+  box-shadow: 0 0 10px rgba(0,245,255,0.5);
+  cursor: crosshair;
+}
+.opt-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt-chip {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  font-family: var(--mono); font-size: 0.58rem;
+  letter-spacing: 0.08em; color: var(--fg3);
+  transition: all 0.18s; cursor: crosshair;
+}
+.opt-chip:hover { border-color: rgba(255,255,255,0.2); color: var(--fg2); }
+.opt-chip.active {
+  background: rgba(0,245,255,0.1);
+  border-color: rgba(0,245,255,0.4);
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0,245,255,0.15);
+}
+
+/* ── PANEL STATUS TICKER ────────────────────────────────────────────────── */
+.status-ticker {
+  font-family: var(--mono); font-size: 0.55rem;
+  letter-spacing: 0.12em; color: var(--fg3);
+  white-space: nowrap; overflow: hidden;
+  animation: tickerScroll 20s linear infinite;
+}
+@keyframes tickerScroll {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ── STATS BAR ──────────────────────────────────────────────────────────── */
+#statsBar {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; overflow: hidden;
+  margin-bottom: 20px;
+}
+.stat-cell {
+  background: rgba(0,0,0,0.3);
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; overflow: hidden;
+}
+.stat-cell::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px;
+  animation: statLine 3s ease-in-out infinite;
+}
+.stat-cell:nth-child(1)::after { background: var(--pink);   animation-delay: 0s; }
+.stat-cell:nth-child(2)::after { background: var(--cyan);   animation-delay: 0.4s; }
+.stat-cell:nth-child(3)::after { background: var(--purple); animation-delay: 0.8s; }
+.stat-cell:nth-child(4)::after { background: var(--lime);   animation-delay: 1.2s; }
+@keyframes statLine {
+  0%,100% { transform: scaleX(0.2); opacity: 0.4; }
+  50%     { transform: scaleX(1);   opacity: 1; }
+}
+.stat-label {
+  font-family: var(--mono); font-size: 0.52rem;
+  letter-spacing: 0.15em; color: var(--fg3);
+  text-transform: uppercase;
+}
+
+/* ── PROCESSING VISUAL ENHANCEMENT ─────────────────────────────────────── */
+#stateProcessing { position: relative; }
+#energyField {
+  position: absolute; inset: 0; pointer-events: none;
+  overflow: hidden; border-radius: inherit;
+}
+.energy-beam {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  animation: beamSweep linear infinite;
+  opacity: 0.4;
+}
+@keyframes beamSweep {
+  0%   { left: -100%; width: 60%; }
+  100% { left: 160%;  width: 60%; }
+}
+
+/* ── FOOTER ACCENT ──────────────────────────────────────────────────────── */
+footer.omni-footer {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 2px; pointer-events: none; z-index: 5;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--pink) 20%,
+    var(--cyan) 50%, var(--purple) 80%, transparent 100%
+  );
+  animation: footerGlow 4s ease-in-out infinite alternate;
+}
+@keyframes footerGlow {
+  0%   { opacity: 0.4; filter: blur(0px); }
+  100% { opacity: 1;   filter: blur(1px); }
+}
+
+
+/* ── FLOATING ACTION BUTTONS ────────────────────────────────── */
+.fab-btn {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  color: var(--fg3);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: all 0.2s; cursor: crosshair;
+}
+.fab-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--fg); border-color: rgba(255,255,255,0.15);
+}
+
+/* ── THEME DOTS ──────────────────────────────────────────────── */
+.theme-dot {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.1);
+  transition: all 0.2s; cursor: crosshair;
+}
+.theme-dot.active { border-color: #fff; transform: scale(1.2); }
+.theme-dot:hover  { transform: scale(1.1); }
+
+/* ── HISTORY CARD ────────────────────────────────────────────── */
+.history-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+.history-card:hover { border-color: rgba(255,45,120,0.3); }
+.history-thumb {
+  width: 48px; height: 80px; border-radius: 6px;
+  object-fit: cover; flex-shrink: 0;
+  background: rgba(255,255,255,0.05);
+}
+.history-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.history-title {
+  font-family: var(--sans); font-size: 0.8rem; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-meta { font-family: var(--mono); font-size: 0.55rem; color: var(--fg3); letter-spacing: 0.1em; }
+.history-status-done    { color: #39ff6a; }
+.history-status-error   { color: #ff3b3b; }
+.history-status-running { color: var(--cyan); animation: dotPulse 1s ease-in-out infinite; }
+
+/* ── TEMPLATE CARD ───────────────────────────────────────────── */
+.template-card {
+  padding: 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  cursor: crosshair;
+  transition: all 0.2s;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.template-card:hover  { border-color: rgba(0,245,255,0.3); background: rgba(0,245,255,0.04); transform: translateY(-2px); }
+.template-card.active { border-color: var(--cyan); background: rgba(0,245,255,0.08); }
+.template-name   { font-size: 0.9rem; font-weight: 600; }
+.template-desc   { font-family: var(--mono); font-size: 0.58rem; color: var(--fg3); letter-spacing: 0.08em; }
+.template-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.template-badge  {
+  font-family: var(--mono); font-size: 0.5rem; letter-spacing: 0.08em;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.06); color: var(--fg3);
+}
+
+/* ── TIMELINE TRACK ──────────────────────────────────────────── */
+.timeline-track {
+  flex-shrink: 0; width: 72px;
+  display: flex; flex-direction: column; gap: 4px;
+  cursor: grab; user-select: none;
+}
+.timeline-track:active { cursor: grabbing; }
+.timeline-img {
+  width: 72px; height: 96px; border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.08);
+  transition: border-color 0.2s;
+}
+.timeline-track:hover .timeline-img { border-color: rgba(255,45,120,0.5); }
+.timeline-num {
+  font-family: var(--mono); font-size: 0.5rem;
+  color: var(--fg3); text-align: center; letter-spacing: 0.1em;
+}
+.timeline-dragging { opacity: 0.5; transform: scale(0.95); }
+
+/* ── SUBTITLE FIELD ──────────────────────────────────────────── */
+.subtitle-field {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+}
+.subtitle-scene-num {
+  font-family: var(--mono); font-size: 0.55rem;
+  color: var(--cyan); letter-spacing: 0.12em;
+}
+.subtitle-input {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  color: var(--fg); font-family: var(--mono); font-size: 0.75rem;
+  padding: 8px 12px; outline: none; transition: border-color 0.2s;
+  resize: vertical; min-height: 44px;
+}
+.subtitle-input:focus { border-color: var(--pink); }
+
+/* ── THEMES ──────────────────────────────────────────────────── */
+[data-theme="industrial"] {
+  --pink:   #ff8c00;
+  --cyan:   #e8e8e8;
+  --purple: #c0392b;
+  --lime:   #e67e22;
+  --orange: #d35400;
+  --c0:     #0f0e0a;
+  --c1:     #1a1710;
+}
+[data-theme="matrix"] {
+  --pink:   #00ff41;
+  --cyan:   #00cc33;
+  --purple: #007722;
+  --lime:   #00ff99;
+  --orange: #33ff66;
+  --c0:     #000a00;
+  --c1:     #001500;
+}
+
+
+/* ══════════════════════════════════════════════════
+   ANNOUNCEMENT TICKER
+══════════════════════════════════════════════════ */
+.ticker-bar {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  margin-bottom: 0;
+  background: linear-gradient(90deg, rgba(157,78,221,0.25), rgba(255,45,120,0.18), rgba(0,245,255,0.18), rgba(255,124,45,0.18), rgba(157,78,221,0.25));
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(20px);
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+.ticker-inner {
+  display: flex;
+  gap: 0;
+  animation: tickerScroll 38s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 32px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--fg);
+  flex-shrink: 0;
+}
+.ticker-item .t-icon { font-size: 0.85rem; }
+.ticker-item.t-pink   { color: var(--pink);   text-shadow: 0 0 12px var(--pink); }
+.ticker-item.t-cyan   { color: var(--cyan);   text-shadow: 0 0 12px var(--cyan); }
+.ticker-item.t-lime   { color: var(--lime);   text-shadow: 0 0 12px var(--lime); }
+.ticker-item.t-orange { color: var(--orange); text-shadow: 0 0 12px var(--orange); }
+.ticker-item.t-yellow { color: var(--yellow); text-shadow: 0 0 12px var(--yellow); }
+.ticker-item.t-purple { color: #c084fc;       text-shadow: 0 0 12px #c084fc; }
+.ticker-sep { color: rgba(255,255,255,0.2); padding: 0 4px; }
+@keyframes tickerScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ══════════════════════════════════════════════════
+   MODEL SELECTOR
+══════════════════════════════════════════════════ */
+.model-selector-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.model-btn {
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--fg2);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  transition: all 0.22s;
+  cursor: crosshair;
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+}
+.model-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  opacity: 0;
+  transition: opacity 0.22s;
+}
+.model-btn:hover { color: var(--fg); border-color: rgba(255,255,255,0.2); }
+.model-btn:hover::before { opacity: 0.08; }
+.model-btn.active {
+  color: #fff;
+  border-color: transparent;
+}
+.model-btn.active::before { opacity: 1; }
+
+/* colores por modelo */
+.mb-auto   ::before, .mb-auto.active   { background: linear-gradient(135deg, #7c3aed, var(--pink)); box-shadow: 0 0 16px rgba(124,58,237,0.5); }
+.mb-veo    ::before, .mb-veo.active    { background: linear-gradient(135deg, #1a73e8, var(--cyan)); box-shadow: 0 0 16px rgba(26,115,232,0.5); }
+.mb-sora   ::before, .mb-sora.active   { background: linear-gradient(135deg, #10a37f, var(--lime)); box-shadow: 0 0 16px rgba(16,163,127,0.5); }
+.mb-flux   ::before, .mb-flux.active   { background: linear-gradient(135deg, var(--orange), var(--yellow)); box-shadow: 0 0 16px rgba(255,124,45,0.5); }
+.mb-pol    ::before, .mb-pol.active    { background: linear-gradient(135deg, var(--purple), var(--pink)); box-shadow: 0 0 16px rgba(157,78,221,0.5); }
+.mb-pic    ::before, .mb-pic.active    { background: linear-gradient(135deg, #374151, #6b7280); box-shadow: 0 0 10px rgba(55,65,81,0.5); }
+
+.model-btn-name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  position: relative; z-index: 1;
+}
+.model-btn-tag {
+  font-size: 0.48rem;
+  opacity: 0.7;
+  letter-spacing: 0.1em;
+  position: relative; z-index: 1;
+}
+.model-btn-badge {
+  position: absolute;
+  top: 4px; right: 6px;
+  font-size: 0.44rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  z-index: 2;
+}
+.badge-free { background: var(--lime); color: #000; }
+.badge-new  { background: var(--pink); color: #fff; }
+.badge-ai   { background: var(--cyan); color: #000; }
+
+/* model full-width AUTO option */
+.model-btn-auto {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.model-auto-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, var(--pink));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  position: relative; z-index: 1;
+}
+.model-auto-info { position: relative; z-index: 1; }
+.model-auto-cascade {
+  font-size: 0.45rem;
+  opacity: 0.55;
+  letter-spacing: 0.08em;
+  margin-top: 1px;
+}
+
+
+/* ══════════════════════════════════════════════════
+   EXTRA COLOR & ANIMATIONS v13
+══════════════════════════════════════════════════ */
+
+/* Aurora animada extra arriba del todo */
+.aurora {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--pink), var(--purple), var(--cyan),
+    var(--lime), var(--orange), var(--yellow),
+    var(--pink));
+  background-size: 400%;
+  animation: auroraMove 6s linear infinite;
+  z-index: 9999;
+  opacity: 0.9;
+}
+@keyframes auroraMove { 0%{background-position:0%} 100%{background-position:400%} }
+
+/* Panel borders más visibles */
+.panel {
+  border-color: rgba(157,78,221,0.18) !important;
+}
+.panel:hover {
+  border-color: rgba(255,45,120,0.35) !important;
+  box-shadow: 0 0 40px rgba(157,78,221,0.12), 0 0 80px rgba(255,45,120,0.06);
+}
+
+/* Panel glow rotante más visible */
+.panel::before {
+  opacity: 0 !important;
+  animation: borderRotate 4s linear infinite, borderFade2 4s ease-in-out infinite !important;
+}
+@keyframes borderFade2 { 0%,100%{opacity:0} 40%,60%{opacity:0.7} }
+
+/* Ticker borde inferior con arco iris */
+.ticker-bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--purple), var(--pink), var(--cyan), var(--lime), var(--orange), var(--purple));
+  background-size: 300%;
+  animation: tickerBorder 3s linear infinite;
+}
+@keyframes tickerBorder { 0%{background-position:0%} 100%{background-position:300%} }
+
+/* model buttons hover glow */
+.mb-veo:hover  { box-shadow: 0 0 20px rgba(26,115,232,0.4); }
+.mb-sora:hover { box-shadow: 0 0 20px rgba(16,163,127,0.4); }
+.mb-flux:hover { box-shadow: 0 0 20px rgba(255,124,45,0.4); }
+.mb-pol:hover  { box-shadow: 0 0 20px rgba(157,78,221,0.4); }
+.mb-auto:hover { box-shadow: 0 0 20px rgba(124,58,237,0.4); }
+
+/* Float-in animation for model grid */
+@keyframes modelFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#modelContainer .model-btn {
+  animation: modelFadeIn 0.4s ease both;
+}
+#modelContainer .model-btn:nth-child(1) { animation-delay: 0.05s; }
+#modelContainer .model-btn:nth-child(2) { animation-delay: 0.10s; }
+#modelContainer .model-btn:nth-child(3) { animation-delay: 0.15s; }
+#modelContainer .model-btn:nth-child(4) { animation-delay: 0.20s; }
+#modelContainer .model-btn:nth-child(5) { animation-delay: 0.25s; }
+
+/* Stats bar colores extra */
+.stat-value { 
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: statColor 4s ease-in-out infinite alternate;
+}
+@keyframes statColor {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(60deg); }
+}
+
+
+/* ══════════════════════════════════════════════════
+   SERVICE STATUS PANEL
+══════════════════════════════════════════════════ */
+.status-panel {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  width: 320px;
+  background: rgba(8,5,26,0.94);
+  border: 1px solid rgba(0,245,255,0.18);
+  border-radius: 12px;
+  backdrop-filter: blur(24px);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  box-shadow: 0 0 40px rgba(0,245,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+  transform: translateY(110%);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+.status-panel.open { transform: translateY(0); }
+.status-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(0,245,255,0.1);
+}
+.status-panel-title { color: var(--cyan); letter-spacing: 0.12em; font-size: 0.62rem; }
+.status-panel-close { color: var(--fg3); cursor: crosshair; font-size: 1rem; padding: 0 2px; }
+.status-panel-body { padding: 10px 14px 14px; }
+.svc-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.svc-row:last-child { border-bottom: none; }
+.svc-icon { width: 20px; text-align: center; }
+.svc-label { flex: 1; color: var(--fg2); }
+.svc-ms { width: 54px; text-align: right; color: var(--fg3); }
+.svc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.svc-dot.ok   { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.svc-dot.fail { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+.svc-dot.pend { background: var(--fg3);   animation: dotPulse 1.2s ease-in-out infinite; }
+.status-panel-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(0,245,255,0.07);
+  color: var(--fg3);
+}
+.status-refresh-btn { color: var(--cyan); cursor: crosshair; font-size: 0.62rem; letter-spacing: 0.1em; }
+.status-refresh-btn:hover { color: var(--fg); }
+.status-toggle-pill {
+  display: flex; align-items: center; gap: 6px;
+  cursor: crosshair;
+  padding: 4px 10px;
+  border: 1px solid rgba(0,245,255,0.22);
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--fg2);
+  transition: all 0.2s;
+}
+.status-toggle-pill:hover { border-color: var(--cyan); color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<!-- ══ BACKGROUND ══════════════════════════════════════════════════════════ -->
+<div class="aurora"></div>
+<div class="bg-canvas">
+  <div class="bg-grid"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="orb orb4"></div>
+  <div class="orb orb5"></div>
+  <div class="orb orb6"></div>
+  <div class="scanline"></div>
+  <div class="scanline"></div>
+  <div class="scanline"></div>
+  <div id="particles"></div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════════════════════ -->
+<!-- ANNOUNCEMENT TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-inner" id="tickerInner">
+    <!-- first copy -->
+    <span class="ticker-item t-lime"><span class="t-icon">🎬</span> ¡Sora 2 FREE! ya disponible <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-cyan"><span class="t-icon">⚡</span> Veo 3.1 Fast — generación nativa por escena <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-pink"><span class="t-icon">🔥</span> Pipeline AI: Video → Imagen → Fallback automático <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-orange"><span class="t-icon">🖼</span> AIML/Flux Dev · Pollinations · Picsum como respaldo <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-yellow"><span class="t-icon">🤖</span> Gemini 3 Pro Image Preview · Qwen Flash · GPT-4o Mini <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-purple"><span class="t-icon">🎙</span> Azure TTS — 6 voces en 4 idiomas <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-cyan"><span class="t-icon">🎞</span> Ken Burns · Color Grading · Beat Sync · Karaoke Subs <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-pink"><span class="t-icon">✨</span> Nuevo: selector de modelo con fallback inteligente <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-lime"><span class="t-icon">🚀</span> OmniForge v13 — AI Video Engine <span class="ticker-sep">✦</span></span>
+    <!-- duplicate for seamless loop -->
+    <span class="ticker-item t-lime"><span class="t-icon">🎬</span> ¡Sora 2 FREE! ya disponible <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-cyan"><span class="t-icon">⚡</span> Veo 3.1 Fast — generación nativa por escena <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-pink"><span class="t-icon">🔥</span> Pipeline AI: Video → Imagen → Fallback automático <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-orange"><span class="t-icon">🖼</span> AIML/Flux Dev · Pollinations · Picsum como respaldo <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-yellow"><span class="t-icon">🤖</span> Gemini 3 Pro Image Preview · Qwen Flash · GPT-4o Mini <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-purple"><span class="t-icon">🎙</span> Azure TTS — 6 voces en 4 idiomas <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-cyan"><span class="t-icon">🎞</span> Ken Burns · Color Grading · Beat Sync · Karaoke Subs <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-pink"><span class="t-icon">✨</span> Nuevo: selector de modelo con fallback inteligente <span class="ticker-sep">✦</span></span>
+    <span class="ticker-item t-lime"><span class="t-icon">🚀</span> OmniForge v13 — AI Video Engine <span class="ticker-sep">✦</span></span>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- FLOATING ACTION BUTTONS -->
+  <div style="position:fixed;top:50%;left:0;transform:translateY(-50%);z-index:500;
+       display:flex;flex-direction:column;gap:4px;padding:8px 6px;
+       background:rgba(0,0,0,0.7);border-radius:0 12px 12px 0;
+       border:1px solid rgba(255,255,255,0.06);border-left:none;backdrop-filter:blur(20px)">
+    <button onclick="toggleHistory()" title="Historial" class="fab-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </button>
+    <button onclick="toggleTemplates()" title="Plantillas" class="fab-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    </button>
+    <button onclick="openPreviewModal()" title="Preview rápido" class="fab-btn" style="color:var(--lime)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    </button>
+    <button onclick="toggleTimeline()" title="Timeline" class="fab-btn" id="timelineBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div id="queueIndicator" style="display:none;font-family:var(--mono);font-size:0.5rem;
+         color:var(--yellow);text-align:center;letter-spacing:0.05em" title="Trabajos en cola">Q:0</div>
+  </div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-name">OMNIFORGE</span>
+        <span class="logo-sub">AI VIDEO ENGINE · v8.2</span>
+      </div>
+    </div>
+
+    <div class="header-pills">
+      <div class="pill">
+        <div class="pill-dot green"></div>
+        <span class="pill-label">STATUS</span>
+        <span class="pill-value live">ONLINE</span>
+      </div>
+      <div class="pill">
+        <div class="pill-dot cyan"></div>
+        <span class="pill-label">LATENCY</span>
+        <span class="pill-value" id="pingDisplay">-- ms</span>
+      </div>
+      <div class="pill">
+        <div class="pill-dot pink"></div>
+        <span class="pill-label">CLOCK</span>
+        <span class="pill-value" id="clockDisplay">00:00:00</span>
+      </div>
+      <button class="status-toggle-pill" id="statusToggleBtn" onclick="toggleStatusPanel()">
+        <div class="svc-dot pend" id="statusGlobalDot"></div>
+        <span id="statusGlobalLabel">SERVICIOS</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- LEFT: CONTROLS -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">// Input Parameters</span>
+        <div class="panel-badge">
+          <div style="width:5px;height:5px;border-radius:50%;background:var(--cyan);animation:dotPulse 2s ease-in-out infinite"></div>
+          READY
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- prompt -->
+        <div>
+          <label class="field-label" for="promptInput">Narrative Script</label>
+          <div class="textarea-wrap">
+            <textarea id="promptInput" placeholder="Describe el concepto del video...&#10;&#10;Ej: Un astronauta que descubre vida en Marte&#10;    Un gato saltando en la luna&#10;    El futuro de la humanidad"></textarea>
+          </div>
+        </div>
+
+
+        <!-- MODEL SELECTOR -->
+        <div class="model-selector-wrap">
+          <label class="field-label">🎬 Modelo de Generación</label>
+          <div class="model-grid" id="modelContainer">
+
+            <!-- AUTO — full width -->
+            <button class="model-btn model-btn-auto mb-auto active" data-model="auto" onclick="selectModel(this,'auto')">
+              <div class="model-auto-icon">⚡</div>
+              <div class="model-auto-info">
+                <div class="model-btn-name">AUTO — CASCADA INTELIGENTE</div>
+                <div class="model-auto-cascade">Veo 3.1 → Sora 2 → AIML/Flux → Pollinations → Picsum</div>
+              </div>
+              <span class="model-btn-badge badge-ai">DEFAULT</span>
+            </button>
+
+            <!-- Veo 3.1 -->
+            <button class="model-btn mb-veo" data-model="veo31" onclick="selectModel(this,'veo31')">
+              <span class="model-btn-badge badge-new">NEW</span>
+              <div class="model-btn-name">Veo 3.1 Fast</div>
+              <div class="model-btn-tag">🎬 VIDEO · Google · AIML</div>
+            </button>
+
+            <!-- Sora 2 -->
+            <button class="model-btn mb-sora" data-model="sora2" onclick="selectModel(this,'sora2')">
+              <span class="model-btn-badge badge-free">FREE</span>
+              <div class="model-btn-name">Sora 2</div>
+              <div class="model-btn-tag">🎬 VIDEO · OpenAI · AIML</div>
+            </button>
+
+            <!-- AIML Flux -->
+            <button class="model-btn mb-flux" data-model="flux" onclick="selectModel(this,'flux')">
+              <div class="model-btn-name">AIML / Flux Dev</div>
+              <div class="model-btn-tag">🖼 IMAGEN · Black Forest</div>
+            </button>
+
+            <!-- Pollinations -->
+            <button class="model-btn mb-pol" data-model="pollinations" onclick="selectModel(this,'pollinations')">
+              <div class="model-btn-name">Pollinations</div>
+              <div class="model-btn-tag">🖼 IMAGEN · Flux Realism</div>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- scenes -->
+        <div>
+          <label class="field-label">Timeline Complexity</label>
+          <div class="scene-selector" id="sceneContainer"></div>
+        </div>
+
+        <!-- format -->
+        <div>
+          <label class="field-label">Formato de Video</label>
+          <div class="format-selector" id="formatContainer"></div>
+        </div>
+
+
+        <!-- ADVANCED OPTIONS — EXTREME EDITION -->
+        <div class="adv-section">
+          <button class="adv-toggle" onclick="toggleAdv(this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            <span>Opciones Avanzadas</span>
+            <span class="adv-arrow">▼</span>
+          </button>
+          <div class="adv-body" id="advBody">
+
+            <!-- ESTILO VISUAL — grande y colorido -->
+            <div class="adv-row">
+              <label class="adv-label">🎨 Estilo Visual</label>
+              <div class="style-grid" id="styleContainer"></div>
+            </div>
+
+            <!-- TRANSICIONES -->
+            <div class="adv-row">
+              <label class="adv-label">🎬 Pack de Transiciones</label>
+              <div class="opt-grid" id="transContainer"></div>
+            </div>
+
+            <!-- DURACIÓN -->
+            <div class="adv-row">
+              <label class="adv-label">⏱ Duración por escena — <span id="durVal" style="color:var(--acc)">6s</span></label>
+              <input type="range" class="adv-range" id="sceneDur" min="3" max="12" step="1" value="6"
+                oninput="document.getElementById('durVal').textContent=this.value+'s'; S.DURATION=+this.value">
+            </div>
+
+            <!-- FEATURES TOGGLES -->
+            <div class="adv-row">
+              <label class="adv-label">🎞 Extras</label>
+              <div class="toggle-row">
+                <label class="toggle-label">
+                  <input type="checkbox" id="introToggle" onchange="S.WITH_INTRO=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>Intro</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="outroToggle" onchange="S.WITH_OUTRO=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>Outro</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="hudToggle" onchange="S.WITH_HUD=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>HUD</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="kenBurnsToggle" checked onchange="S.KEN_BURNS=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>Ken Burns</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="gradeToggle" checked onchange="S.WITH_GRADE=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>Color Grade</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="sfxToggle" checked onchange="S.WITH_SFX=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>SFX Ambient</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="parallaxToggle" onchange="S.WITH_PARALLAX=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>Parallax</span>
+                </label>
+                <label class="toggle-label">
+                  <input type="checkbox" id="abtestToggle" onchange="S.WITH_ABTEST=this.checked">
+                  <span class="toggle-track"></span>
+                  <span>A/B Prompts</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- IDIOMA / TRADUCCIÓN AUTOMÁTICA -->
+            <div class="adv-row">
+              <label class="adv-label">🌍 Idioma del Video</label>
+              <div class="opt-grid" id="langContainer"></div>
+            </div>
+
+            <!-- DISCORD WEBHOOK -->
+            <div class="adv-row">
+              <label class="adv-label">🔔 Webhook (Discord/Telegram)</label>
+              <input type="text" id="webhookInput"
+                style="width:100%;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);
+                       border-radius:8px;color:var(--fg);font-family:var(--mono);font-size:0.65rem;
+                       padding:8px 12px;outline:none;transition:border-color 0.2s"
+                placeholder="https://discord.com/api/webhooks/..."
+                onfocus="this.style.borderColor='var(--cyan)'"
+                onblur="this.style.borderColor='rgba(255,255,255,0.08)'"
+                oninput="S.WEBHOOK_URL=this.value">
+            </div>
+
+            <!-- VOZ -->
+            <div class="adv-row">
+              <label class="adv-label">🎙 Voz Narradora</label>
+              <div class="opt-grid" id="voiceContainer"></div>
+            </div>
+
+            <!-- MÚSICA -->
+            <div class="adv-row">
+              <label class="adv-label">🎵 Música de Fondo</label>
+              <div class="opt-grid" id="musicContainer"></div>
+            </div>
+
+            <!-- POSICIÓN TEXTO -->
+            <div class="adv-row">
+              <label class="adv-label">📝 Posición del Texto</label>
+              <div class="opt-grid" id="textPosContainer"></div>
+            </div>
+
+            <!-- FPS -->
+            <div class="adv-row">
+              <label class="adv-label">⚡ FPS (Calidad)</label>
+              <div class="opt-grid" id="fpsContainer"></div>
+            </div>
+
+            <!-- TONO -->
+            <div class="adv-row">
+              <label class="adv-label">✍️ Tono del Guion</label>
+              <div class="opt-grid" id="toneContainer"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- telemetry -->
+        <div class="telem-section">
+          <label class="field-label">Hardware Telemetry</label>
+          <div class="telem-row">
+            <div class="telem-top">
+              <span class="telem-key">VRAM_LOAD</span>
+              <span class="telem-val" id="vramPct" style="color:var(--pink)">0%</span>
+            </div>
+            <div class="telem-bar"><div class="telem-fill tf-pink" id="vramBar"></div></div>
+          </div>
+          <div class="telem-row">
+            <div class="telem-top">
+              <span class="telem-key">CORE_TEMP</span>
+              <span class="telem-val" style="color:var(--cyan)">42°C</span>
+            </div>
+            <div class="telem-bar"><div class="telem-fill tf-cyan"></div></div>
+          </div>
+          <div class="telem-row">
+            <div class="telem-top">
+              <span class="telem-key">PIPELINE</span>
+              <span class="telem-val" id="pipelineStatus" style="color:var(--fg3)">IDLE</span>
+            </div>
+            <div class="telem-bar"><div class="telem-fill tf-orange" id="pipelineBar"></div></div>
+          </div>
+        </div>
+
+        <!-- execute -->
+        <div style="position:relative;margin-top:auto">
+          <div class="btn-execute-glow"></div>
+          <button class="btn-execute" id="genBtn">
+            <div class="btn-execute-bg"></div>
+            <div class="btn-execute-shine"></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" class="btn-execute-text"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span class="btn-execute-text" id="btnText">EXECUTE PROTOCOL</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: OUTPUT -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">// Render Output</span>
+        <div class="panel-badge" id="outputBadge">
+          <div style="width:5px;height:5px;border-radius:50%;background:var(--cyan);animation:dotPulse 2s ease-in-out infinite;"></div>
+          AWAITING
+        </div>
+      </div>
+
+      <!-- IDLE -->
+      <div id="stateIdle" style="display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px;text-align:center">
+        <div class="idle-ring">
+          <div class="ring-orbit"></div>
+          <div class="ring-orbit2"></div>
+          <div class="ring-dot"></div>
+          <div class="ring-dot2"></div>
+          <div class="idle-ring-inner">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="idle-title">FORGE<br>READY</div>
+
+        <p class="idle-sub">Pipeline industrial de video IA.<br>Inserta el concepto y ejecuta el protocolo.</p>
+
+        <div class="idle-chips">
+          <span class="chip chip1">AI SCRIPTING</span>
+          <span class="chip chip2">POLLINATIONS</span>
+          <span class="chip chip3">JSON2VIDEO</span>
+          <span class="chip chip4">NEURAL TTS</span>
+        </div>
+
+        <span class="idle-hint">→ http://localhost:3000</span>
+      </div>
+
+      <!-- PROCESSING -->
+      <div id="stateProcessing" style="display:none;flex:1;flex-direction:column;padding:32px;gap:20px">
+        <div class="proc-top">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="proc-badge">
+              <div class="proc-badge-dot"></div>
+              <span id="phaseLabel">INITIALIZING</span>
+            </div>
+            <div class="proc-title">FORGING<br><span class="acc">DIGITAL MATTER</span></div>
+          </div>
+          <div class="proc-pct" id="pctText">00</div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-track">
+            <div class="progress-fill" id="mainProgress"></div>
+          </div>
+        </div>
+
+        <div class="phase-grid">
+          <div class="phase-card" id="card-1">
+            <span class="phase-name">Scripting</span>
+            <span class="phase-status" id="log-1">PENDING</span>
+          </div>
+          <div class="phase-card" id="card-2">
+            <span class="phase-name">Visuals</span>
+            <span class="phase-status" id="log-2">PENDING</span>
+          </div>
+          <div class="phase-card" id="card-3">
+            <span class="phase-name">Render</span>
+            <span class="phase-status" id="log-3">PENDING</span>
+          </div>
+          <div class="phase-card" id="card-4">
+            <span class="phase-name">Audio</span>
+            <span class="phase-status" id="log-4">PENDING</span>
+          </div>
+        </div>
+
+        <p class="proc-detail" id="procDetail">AWAITING INPUT SIGNAL...</p>
+      </div>
+
+      <!-- DONE -->
+      <div id="stateDone" style="display:none;flex:1;flex-direction:column;padding:20px;gap:12px;min-height:500px">
+
+        <!-- Thumbnail row -->
+        <div id="thumbRow" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:4px"></div>
+
+        <!-- Video player -->
+        <div id="videoWrap" style="flex:1;min-height:380px;background:#000;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);position:relative">
+          <video id="outputVideo" controls playsinline
+            style="width:100%;height:100%;min-height:380px;object-fit:contain;display:block;position:relative;z-index:1"></video>
+          <!-- Fallback layer shown when video fails -->
+          <div id="videoFallback" style="display:none;position:absolute;inset:0;z-index:2;
+               background:linear-gradient(135deg,#0d0d1a,#1a0d2e);
+               flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:30px">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#39ff6a" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <p style="font-family:var(--mono);font-size:0.7rem;color:rgba(255,255,255,0.7);text-align:center;letter-spacing:0.12em">VIDEO RENDERIZADO</p>
+            <a id="openVideoBtn" href="#" target="_blank"
+              style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.12em;padding:12px 28px;
+                     background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;
+                     border-radius:8px;text-decoration:none;display:inline-block">
+              ▶ ABRIR VIDEO EN NUEVA PESTAÑA
+            </a>
+          </div>
+        </div>
+
+        <!-- SSE real-time image strip -->
+        <div id="imageStrip" style="display:none;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:4px 0">
+        </div>
+
+        <!-- Bottom bar -->
+        <div class="done-bar">
+          <div>
+            <div class="done-title">MASTER RENDERED</div>
+            <div class="done-id" id="doneProjectId">PROJECT: —</div>
+          </div>
+          <div class="done-actions">
+            <button class="btn-ghost" onclick="resetUI()">New Video</button>
+            <a id="openDirectBtn" href="#" target="_blank" class="btn-ghost" style="border-color:rgba(0,245,255,0.4);color:var(--cyan)">Open ↗</a>
+            <a id="downloadBtn" href="#" download class="btn-dl">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right panel -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<div id="toasts"></div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────────────────
+const isFile = window.location.protocol === "file:";
+const API    = isFile ? "http://localhost:3000" : window.location.origin;
+if (isFile) console.warn("⚠ file:// detectado — usando http://localhost:3000");
+
+const S = {
+  SCENES:         3,
+  FORMAT:         "portrait",
+  DURATION:       6,
+  TRANSITION:     "fade",
+  STYLE:          "cinematic photorealistic",
+  VOICE:          "es-MX-DaliaNeural",
+  MUSIC_OVERRIDE: "auto",
+  TEXT_POS:       "center-center",
+  FPS:            30,
+  TONE:           "epic and dramatic",
+};
+
+const FORMATS = {
+  portrait:  { w: 720,  h: 1280, label: "9:16", icon: "▯", hint: "TikTok/Reels" },
+  landscape: { w: 1280, h: 720,  label: "16:9", icon: "▬", hint: "YouTube"      },
+  square:    { w: 1080, h: 1080, label: "1:1",  icon: "▪", hint: "Instagram"    },
+};
+let isGenerating = false, pollInterval = null, fakeInterval = null, progress = 0;
+let currentThumbnail = null, sseSource = null;
+
+// ── KEYS (browser-side, nunca en el server) ────────────────────────────────
+const GOOGLE_AI_KEY = "AIzaSyDHVbsxIDjjz7vYwFx6qTWW0HxENRphZ5Q";
+const IMGBB_KEY     = "a481beae76dd9a87b33ff085fea0531f"; // api.imgbb.com → gratis
+
+// ── BOOT ───────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  initClock();
+  initScenes();
+  initFormat();
+  initAllAdvanced();
+  initParticles();
+  document.getElementById("genBtn").addEventListener("click", generate);
+});
+
+// ── CLOCK ──────────────────────────────────────────────────────────────────
+function initClock() {
+  setInterval(() => {
+    document.getElementById("clockDisplay").textContent = new Date().toLocaleTimeString("es-AR");
+    document.getElementById("pingDisplay").textContent  = Math.floor(Math.random() * 18 + 6) + " ms";
+  }, 1000);
+}
+
+// ── PARTICLES ──────────────────────────────────────────────────────────────
+function initParticles() {
+  const container = document.getElementById("particles");
+  const colors    = ["#ff2d78","#00f5ff","#9d4edd","#b5ff2d","#ff7c2d"];
+
+  for (let i = 0; i < 28; i++) {
+    const p = document.createElement("div");
+    p.className = "particle";
+    const size = Math.random() * 3 + 1.5;
+    const col  = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 100;
+    const dur  = Math.random() * 18 + 10;
+    const del  = Math.random() * 20;
+    const drift = (Math.random() - 0.5) * 120;
+
+    p.style.cssText = `
+      width:${size}px; height:${size}px;
+      background:${col};
+      box-shadow: 0 0 ${size * 3}px ${col};
+      left:${left}%;
+      bottom: -10px;
+      animation-duration:${dur}s;
+      animation-delay:-${del}s;
+      --drift:${drift}px;
+    `;
+    container.appendChild(p);
+  }
+}
+
+// ── SCENES ─────────────────────────────────────────────────────────────────
+function initScenes() {
+  const c = document.getElementById("sceneContainer");
+  [2, 3, 5, 8].forEach(n => {
+    const b = document.createElement("button");
+    b.className = "scene-btn" + (n === 3 ? " active" : "");
+    b.textContent = n;
+    b.addEventListener("click", () => {
+      S.SCENES = n;
+      c.querySelectorAll(".scene-btn").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+    c.appendChild(b);
+  });
+}
+
+
+// ── ADVANCED OPTIONS ────────────────────────────────────────────────────────
+window.toggleAdv = (btn) => {
+  btn.classList.toggle("open");
+  document.getElementById("advBody").classList.toggle("open");
+};
+
+function initChips(containerId, options, key, defaultVal) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  options.forEach(o => {
+    const b = document.createElement("button");
+    b.className = "opt-chip" + (o.value === defaultVal ? " active" : "");
+    b.textContent = o.label;
+    b.addEventListener("click", () => {
+      S[key] = o.value;
+      c.querySelectorAll(".opt-chip").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+    c.appendChild(b);
+  });
+}
+
+function initAllAdvanced() {
+  // Estilo Visual — cards grandes con color y emoji
+  initStyleCards("styleContainer", [
+    { label:"Cinemático",  icon:"🎬", value:"cinematic",   color:"#ff2d78" },
+    { label:"Anime",       icon:"🌸", value:"anime",       color:"#ff7c2d" },
+    { label:"Documental",  icon:"📷", value:"documentary", color:"#39ff6a" },
+    { label:"Cyberpunk",   icon:"⚡", value:"cyberpunk",   color:"#00f5ff" },
+    { label:"Fantasía",    icon:"🔮", value:"fantasy",     color:"#9d4edd" },
+    { label:"Vintage",     icon:"📽", value:"vintage",     color:"#ffe033" },
+  ], "VISUAL_STYLE", "cinematic");
+
+  // Pack de transiciones
+  initChips("transContainer", [
+    { label: "🎞 Cine",    value: "cinematic" },
+    { label: "⚡ Dinámico", value: "dynamic"   },
+    { label: "🌊 Suave",   value: "smooth"    },
+    { label: "🎲 Random",  value: "random"    },
+  ], "TRANS_STYLE", "cinematic");
+
+  initChips("voiceContainer", [
+    { label: "Dalia (MX♀)",    value: "es-MX-DaliaNeural"   },
+    { label: "Jorge (MX♂)",    value: "es-MX-JorgeNeural"   },
+    { label: "Elvira (ES♀)",   value: "es-ES-ElviraNeural"  },
+    { label: "Álvaro (ES♂)",   value: "es-ES-AlvaroNeural"  },
+    { label: "Salomé (CO♀)",   value: "es-CO-SalomeNeural"  },
+    { label: "Jenny (EN♀)",    value: "en-US-JennyNeural"   },
+  ], "VOICE", "es-MX-DaliaNeural");
+
+  initChips("musicContainer", [
+    { label: "🔥 Epic",       value: "epic"       },
+    { label: "😨 Suspense",   value: "suspense"   },
+    { label: "🚀 Futuristic", value: "futuristic" },
+    { label: "⚔️ Action",     value: "action"     },
+    { label: "🌿 Calm",       value: "calm"       },
+    { label: "🤖 Auto",       value: "auto"       },
+  ], "MUSIC_OVERRIDE", "auto");
+
+  initChips("textPosContainer", [
+    { label: "⬇ Abajo",   value: "bottom"  },
+    { label: "⬛ Centro",  value: "center"  },
+    { label: "⬆ Arriba",  value: "top"     },
+    { label: "✗ Sin",     value: "none"    },
+  ], "TEXT_POS", "bottom");
+
+  initChips("fpsContainer", [
+    { label: "24fps", value: 24 },
+    { label: "30fps", value: 30 },
+    { label: "60fps", value: 60 },
+  ], "FPS", 30);
+
+  initChips("toneContainer", [
+    { label: "🔥 Épico",       value: "epic and dramatic"          },
+    { label: "🕵 Misterioso",  value: "mysterious and suspenseful"  },
+    { label: "💪 Motivacional", value: "motivational and inspiring" },
+    { label: "😂 Humorístico", value: "funny and lighthearted"      },
+    { label: "💕 Romántico",   value: "romantic and emotional"      },
+    { label: "😱 Terror",      value: "scary and terrifying"        },
+    { label: "📰 Documental",  value: "documentary neutral tone"    },
+  ], "TONE", "epic and dramatic");
+}
+
+// Style cards con colores y emojis
+function initStyleCards(containerId, options, key, defaultVal) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  options.forEach(o => {
+    const b = document.createElement("button");
+    b.className = "style-card" + (o.value === defaultVal ? " active" : "");
+    b.style.setProperty("--card-color", o.color);
+    b.innerHTML = `<span class="style-icon">${o.icon}</span><span class="style-name">${o.label}</span>`;
+    b.addEventListener("click", () => {
+      S[key] = o.value;
+      c.querySelectorAll(".style-card").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+    c.appendChild(b);
+  });
+}
+
+
+// ── FORMAT SELECTOR ────────────────────────────────────────────────────────
+function initFormat() {
+  const c = document.getElementById("formatContainer");
+  Object.entries(FORMATS).forEach(([key, f]) => {
+    const b = document.createElement("button");
+    b.className = "format-btn" + (key === S.FORMAT ? " active" : "");
+    b.innerHTML = `<span class="fmt-icon">${f.icon}</span><span>${f.label}</span><span style="font-size:0.5rem;opacity:0.6">${f.hint}</span>`;
+    b.addEventListener("click", () => {
+      S.FORMAT = key;
+      c.querySelectorAll(".format-btn").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+    c.appendChild(b);
+  });
+}
+
+// ── GENERATE ───────────────────────────────────────────────────────────────
+async function generate() {
+  const prompt = document.getElementById("promptInput").value.trim();
+  if (!prompt || isGenerating) { if (!prompt) toast("Escribe el concepto del video", "error"); return; }
+
+  isGenerating = true;
+  setState("processing");
+  setPhase("AI SCRIPTING", { 1:"ACTIVE", 2:"PENDING", 3:"PENDING", 4:"PENDING" });
+  document.getElementById("genBtn").disabled = true;
+  document.getElementById("btnText").textContent = "WORKING...";
+  document.getElementById("outputBadge").innerHTML = `<div style="width:5px;height:5px;border-radius:50%;background:var(--pink);animation:dotPulse 1s ease-in-out infinite;"></div> PROCESSING`;
+  setProcDetail("GENERATING SCRIPT + IMAGES...");
+  startFake(0, 85, 120000);
+
+  // Real-time image preview via SSE
+  if (sseSource) { sseSource.close(); sseSource = null; }
+  const strip = document.getElementById("imageStrip");
+  if (strip) { strip.innerHTML = ""; strip.style.display = "flex"; }
+
+  try {
+    const r    = await fetch(`${API}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text:          prompt,
+        numEscenas:    S.SCENES,
+        format:        S.FORMAT,
+        duration:      S.DURATION      || 6,
+        transStyle:    S.TRANS_STYLE   || "cinematic",
+        visualStyle:   S.VISUAL_STYLE  || "cinematic",
+        voice:         S.VOICE         || "es-MX-DaliaNeural",
+        musicOverride: S.MUSIC_OVERRIDE|| "auto",
+        textPos:       S.TEXT_POS      || "bottom",
+        fps:           S.FPS           || 30,
+        tone:          S.TONE          || "epic and dramatic",
+        withIntro:     S.WITH_INTRO    || false,
+        withOutro:     S.WITH_OUTRO    || false,
+        withHUD:       S.WITH_HUD      || false,
+        kenBurns:      S.KEN_BURNS     !== false,
+        withGrade:     S.WITH_GRADE    !== false,
+        webhookUrl:    S.WEBHOOK_URL   || null,
+        withSFX:       S.WITH_SFX      !== false,
+        withParallax:  S.WITH_PARALLAX || false,
+        withABTest:    S.WITH_ABTEST   || false,
+        targetLang:    S.TARGET_LANG   || "es",
+        withChapters:  S.WITH_CHAPTERS || false,
+        withDocShots:  S.WITH_DOC_SHOTS|| false,
+        multiVoice:    S.MULTI_VOICE   || false,
+        withKaraoke:   S.WITH_KARAOKE  || false,
+        withChain:     S.WITH_CHAIN    || false,
+        withCohere:    S.WITH_COHERE   !== false,
+        withThumb:     S.WITH_THUMB    !== false,
+        useQueue:      S.USE_QUEUE     || false,
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!data.project) throw new Error("Sin Project ID");
+
+    stopFake();
+    currentThumbnail = data.thumbnail || null;
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    setPhase("CLOUD RENDERING", { 1:"DONE", 2:"DONE", 3:"ACTIVE", 4:"ACTIVE" });
+    setProcDetail(`PROJECT: ${data.project} — POLLING...`);
+    toast("Enviado · " + data.project, "info");
+    pollStatus(data.project);
+
+  } catch(err) {
+    stopFake();
+    toast("Error: " + err.message, "error");
+    resetBtn();
+    setState("idle");
+  }
+}
+
+
+// ── POLLING ────────────────────────────────────────────────────────────────
+// Todos los posibles statuses de éxito que devuelve Json2Video
+const J2V_DONE = new Set(["done","completed","rendered","finished","complete","success"]);
+const J2V_ERR  = new Set(["error","failed","cancelled","canceled"]);
+
+function pollStatus(id) {
+  let n = 0;
+  const MAX_POLLS = 180; // 180 × 4s = 12 minutos máximo
+  pollInterval = setInterval(async () => {
+    n++;
+    if (progress < 99) setProgress(Math.min(progress + Math.random() * 1.2, 99));
+    setProcDetail(`POLL #${n}/${MAX_POLLS} · ${id}`);
+
+    // Timeout absoluto — si después de 12 min no hay respuesta, mostrar link directo
+    if (n >= MAX_POLLS) {
+      clearInterval(pollInterval);
+      toast("Tiempo de espera agotado. Si el video se procesó, búscalo en el historial.", "warn");
+      resetBtn(); setState("idle");
+      return;
+    }
+
+    try {
+      const r   = await fetch(`${API}/status/${id}`);
+      const obj = await r.json();
+      console.log(`[Poll #${n}] status="${obj.status}" url=${obj.url||"—"}`);
+
+      // ✅ Video listo — cualquier variante de "done"
+      if (J2V_DONE.has(obj.status) && obj.url) {
+        clearInterval(pollInterval);
+        setProgress(100);
+        setTimeout(() => finalize(obj.url, id, currentThumbnail), 400);
+        return;
+      }
+
+      // ✅ Video listo pero sin url en este poll (Json2Video a veces lo separa)
+      // Hacer un segundo fetch para asegurarse
+      if (J2V_DONE.has(obj.status) && !obj.url) {
+        setTimeout(async () => {
+          try {
+            const r2   = await fetch(`${API}/status/${id}`);
+            const obj2 = await r2.json();
+            if (obj2.url) { clearInterval(pollInterval); setProgress(100); finalize(obj2.url, id, currentThumbnail); }
+          } catch {}
+        }, 2000);
+        return;
+      }
+
+      // ❌ Error en el render
+      if (J2V_ERR.has(obj.status)) {
+        clearInterval(pollInterval);
+        toast(`Error en render (${obj.status}). Intentá de nuevo.`, "error");
+        resetBtn(); setState("idle");
+        return;
+      }
+
+      // ⏳ En progreso — solo actualizar label
+      setProcDetail(`RENDERING... poll #${n} · status: ${obj.status||"processing"}`);
+
+    } catch(e) {
+      console.warn("Poll error:", e.message);
+      // No detener el polling por errores de red temporales
+    }
+  }, 4000);
+}
+
+// ── FINALIZE ───────────────────────────────────────────────────────────────
+function finalize(url, id, thumbnail) {
+  stopCountdown();
+  stopFake();
+  setProgress(100);
+  setState("done");
+  resetBtn();
+
+  setTimeout(() => {
+    const vid       = document.getElementById("outputVideo");
+    const fallback  = document.getElementById("videoFallback");
+    const dlBtn     = document.getElementById("downloadBtn");
+    const openBtn   = document.getElementById("openDirectBtn");
+    const projId    = document.getElementById("doneProjectId");
+
+    // Always set direct link buttons first
+    if (dlBtn)     dlBtn.href     = url;
+    if (openBtn)   openBtn.href   = url;
+    if (projId)    projId.textContent = "PROJECT: " + id;
+
+    // Set video src
+    vid.src = url;
+    vid.load();
+
+    // If video fails to play natively (codec, CORS), show the fallback overlay
+    vid.onerror = () => {
+      vid.style.display = "none";
+      fallback.style.display = "flex";
+      document.getElementById("openVideoBtn").href = url;
+    };
+    // Also trigger fallback if no data after 8s
+    const fallbackTimer = setTimeout(() => {
+      if (vid.readyState < 2) {
+        vid.style.display = "none";
+        fallback.style.display = "flex";
+        document.getElementById("openVideoBtn").href = url;
+      }
+    }, 8000);
+
+    vid.onloadeddata = () => {
+      clearTimeout(fallbackTimer);
+      vid.play().catch(() => {});
+    };
+
+    // Thumbnail preview
+    if (thumbnail) {
+      const row = document.getElementById("thumbRow");
+      if (row) {
+        row.style.display = "flex";
+        row.innerHTML = `<img src="${thumbnail}" style="height:80px;border-radius:8px;border:1px solid rgba(255,45,120,0.4)" title="Thumbnail generado">
+          <div style="font-family:var(--mono);font-size:0.6rem;color:var(--fg2);display:flex;align-items:center;padding:0 8px">THUMBNAIL PREVIEW</div>`;
+      }
+    }
+
+    // Show image strip if was hidden
+    const strip = document.getElementById("imageStrip");
+    if (strip && strip.children.length > 0) strip.style.display = "flex";
+
+    // Scroll into view
+    document.getElementById("stateDone").scrollIntoView({ behavior:"smooth", block:"nearest" });
+
+    // Toast with direct link
+    const t = document.createElement("div");
+    t.className = "toast success";
+    t.innerHTML = `¡Video listo! <a href="${url}" target="_blank" style="color:#fff;text-decoration:underline;margin-left:8px">ABRIR →</a>`;
+    document.getElementById("toasts").appendChild(t);
+    setTimeout(() => t.remove(), 10000);
+
+  }, 300);
+}
+
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+function setState(s) {
+  document.getElementById("stateIdle").style.display       = s==="idle"       ? "flex" : "none";
+  document.getElementById("stateProcessing").style.display = s==="processing" ? "flex" : "none";
+  document.getElementById("stateDone").style.display       = s==="done"       ? "flex" : "none";
+}
+
+function resetBtn() {
+  isGenerating = false;
+  document.getElementById("genBtn").disabled     = false;
+  document.getElementById("btnText").textContent = "EXECUTE PROTOCOL";
+  document.getElementById("outputBadge").innerHTML = `<div style="width:5px;height:5px;border-radius:50%;background:var(--cyan);animation:dotPulse 2s ease-in-out infinite;"></div> READY`;
+}
+
+window.resetUI = () => {
+  clearInterval(pollInterval); stopFake();
+  setProgress(0); setState("idle"); resetBtn();
+  document.getElementById("promptInput").value = "";
+  document.getElementById("outputVideo").src   = "";
+  resetPhases();
+};
+
+// ── PHASES ─────────────────────────────────────────────────────────────────
+function setPhase(label, logs) {
+  document.getElementById("phaseLabel").textContent = label;
+  Object.entries(logs).forEach(([k, v]) => {
+    const el   = document.getElementById("log-" + k);
+    const card = document.getElementById("card-" + k);
+    if (!el) return;
+    el.textContent = v;
+    el.className   = "phase-status " + (v==="DONE"?"ps-done": v==="ACTIVE"||v==="RENDERING..."?"ps-active": v==="ERROR"?"ps-error": "");
+    card.className = "phase-card " + (v==="DONE"?"done-phase": v==="ACTIVE"||v==="RENDERING..."?"active-phase": "");
+  });
+}
+
+function resetPhases() {
+  [1,2,3,4].forEach(k => {
+    const el = document.getElementById("log-"+k), card = document.getElementById("card-"+k);
+    if (el)   { el.textContent = "PENDING"; el.className = "phase-status"; }
+    if (card)  card.className = "phase-card";
+  });
+  document.getElementById("phaseLabel").textContent = "INITIALIZING";
+}
+
+function setProcDetail(t) {
+  const el = document.getElementById("procDetail");
+  if (el) el.textContent = t;
+}
+
+// ── PROGRESS ───────────────────────────────────────────────────────────────
+function setProgress(p) {
+  progress = p;
+  const pf = Math.floor(p);
+  document.getElementById("mainProgress").style.width = p + "%";
+  document.getElementById("pctText").textContent      = String(pf).padStart(2,"0");
+  document.getElementById("pctText").className        = "proc-pct" + (p > 15 ? " hot" : "");
+  document.getElementById("vramBar").style.width      = p + "%";
+  document.getElementById("vramPct").textContent      = pf + "%";
+  document.getElementById("pipelineBar").style.width  = p + "%";
+  document.getElementById("pipelineStatus").textContent = p>=100?"DONE": p>0?"ACTIVE":"IDLE";
+
+  if (p > 10) setPhase("AI SCRIPTING",    {1:"ACTIVE",2:"PENDING",3:"PENDING",4:"PENDING"});
+  if (p > 30) setPhase("ASSEMBLING",      {1:"DONE",  2:"ACTIVE", 3:"PENDING",4:"PENDING"});
+  if (p > 55) setPhase("SUBMITTING",      {1:"DONE",  2:"DONE",   3:"ACTIVE", 4:"PENDING"});
+  if (p > 70) setPhase("CLOUD RENDERING", {1:"DONE",  2:"DONE",   3:"RENDERING...",4:"ACTIVE"});
+}
+
+function startFake(from, to, ms) {
+  stopFake();
+  const steps=80, iv=ms/steps, inc=(to-from)/steps;
+  let cur=from;
+  fakeInterval = setInterval(() => {
+    cur = Math.min(cur + inc + Math.random()*inc*0.4, to);
+    setProgress(cur);
+    if (cur >= to) stopFake();
+  }, iv);
+}
+function stopFake() { if (fakeInterval) { clearInterval(fakeInterval); fakeInterval=null; } }
+
+// ── TOAST ──────────────────────────────────────────────────────────────────
+function toast(msg, type="info") {
+  const t = document.createElement("div");
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(() => { t.style.opacity="0"; t.style.transform="translateY(8px)"; t.style.transition="all 0.3s"; }, 3800);
+  setTimeout(() => t.remove(), 4200);
+}
+</script>
+
+<!-- ══ ULTRA UI LAYER ════════════════════════════════════════════════════ -->
+
+<!-- ══ THEME SWITCHER ════════════════════════════════════════════════ -->
+<div id="themeSwitcher" style="
+  position:fixed;top:50%;right:0;transform:translateY(-50%);
+  z-index:1000;display:flex;flex-direction:column;gap:4px;
+  background:rgba(0,0,0,0.7);padding:8px 6px;
+  border-radius:12px 0 0 12px;border:1px solid rgba(255,255,255,0.06);
+  border-right:none;backdrop-filter:blur(20px);
+">
+  <button class="theme-dot" data-theme="neon"       title="Neon"       style="background:linear-gradient(135deg,#ff2d78,#00f5ff)"></button>
+  <button class="theme-dot" data-theme="industrial" title="Industrial" style="background:linear-gradient(135deg,#ff8c00,#c0392b)"></button>
+  <button class="theme-dot" data-theme="matrix"     title="Matrix"     style="background:linear-gradient(135deg,#00ff41,#003300)"></button>
+</div>
+
+<!-- ══ PREVIEW MODAL ═════════════════════════════════════════════════ -->
+<div id="previewModal" style="
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);
+  align-items:center;justify-content:center;padding:20px;
+">
+  <div style="
+    background:rgba(13,13,26,0.95);border:1px solid rgba(255,45,120,0.3);
+    border-radius:20px;padding:24px;max-width:500px;width:100%;
+    display:flex;flex-direction:column;gap:16px;
+  ">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--display);font-size:1.4rem;letter-spacing:0.06em">SCENE PREVIEW</span>
+      <button onclick="closePreview()" style="color:var(--fg3);font-size:1.2rem;cursor:crosshair">✕</button>
+    </div>
+    <div id="previewImgWrap" style="border-radius:12px;overflow:hidden;background:#000;min-height:200px;display:flex;align-items:center;justify-content:center">
+      <div id="previewSpinner" style="font-family:var(--mono);font-size:0.65rem;color:var(--fg3);letter-spacing:0.1em">GENERATING...</div>
+      <img id="previewImg" src="" style="display:none;width:100%;object-fit:cover">
+    </div>
+    <div id="previewText" style="font-family:var(--mono);font-size:0.65rem;color:var(--fg2);letter-spacing:0.1em"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closePreview()" class="btn-ghost" style="flex:1">Cancelar</button>
+      <button onclick="approvePreview()" class="btn-dl" style="flex:2;justify-content:center">
+        ✓ Aprobar y Generar Todo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY PANEL ══════════════════════════════════════════════════ -->
+<div id="historyPanel" style="
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);
+  padding:20px;overflow-y:auto;
+">
+  <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--display);font-size:2rem;letter-spacing:0.08em">HISTORIAL</span>
+      <button onclick="toggleHistory()" style="color:var(--fg2);font-size:1.5rem;cursor:crosshair">✕</button>
+    </div>
+    <div id="historyList" style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:var(--mono);font-size:0.65rem;color:var(--fg3);text-align:center;padding:20px">
+        Cargando...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEMPLATES PANEL ════════════════════════════════════════════════ -->
+<div id="templatesPanel" style="
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);
+  padding:20px;overflow-y:auto;
+">
+  <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--display);font-size:2rem;letter-spacing:0.08em">PLANTILLAS</span>
+      <button onclick="toggleTemplates()" style="color:var(--fg2);font-size:1.5rem;cursor:crosshair">✕</button>
+    </div>
+    <div id="templatesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
+    <div style="padding:16px;border:1px solid rgba(255,255,255,0.07);border-radius:12px;background:rgba(255,255,255,0.02)">
+      <label style="font-family:var(--mono);font-size:0.6rem;color:var(--fg3);letter-spacing:0.15em;display:block;margin-bottom:10px">GUARDAR CONFIGURACIÓN ACTUAL</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="tplNameInput" placeholder="Nombre de la plantilla..."
+          style="flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);
+                 border-radius:8px;padding:8px 12px;color:var(--fg);font-family:var(--mono);
+                 font-size:0.65rem;outline:none">
+        <button onclick="saveTemplate()" class="btn-dl" style="white-space:nowrap">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUBTITLE EDITOR MODAL ══════════════════════════════════════════ -->
+<div id="subtitleEditor" style="
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,0.9);backdrop-filter:blur(20px);
+  padding:20px;overflow-y:auto;
+">
+  <div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--display);font-size:1.8rem;letter-spacing:0.08em">EDITOR DE SUBTÍTULOS</span>
+      <button onclick="closeSubEditor()" style="color:var(--fg2);font-size:1.5rem;cursor:crosshair">✕</button>
+    </div>
+    <p style="font-family:var(--mono);font-size:0.62rem;color:var(--fg3);letter-spacing:0.08em">
+      Edita el texto de cada escena antes de renderizar. Los cambios se aplican al video final.
+    </p>
+    <div id="subtitleFields" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeSubEditor()" class="btn-ghost">Cancelar</button>
+      <button onclick="applySubtitles()" class="btn-dl" style="flex:1;justify-content:center">
+        ✓ Aplicar y Continuar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TIMELINE PANEL ════════════════════════════════════════════════ -->
+<div id="timelinePanel" style="
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:1500;
+  background:rgba(10,10,25,0.97);border-top:1px solid rgba(255,255,255,0.08);
+  padding:16px 24px;backdrop-filter:blur(30px);
+  max-height:180px;overflow-y:hidden;
+">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <span style="font-family:var(--mono);font-size:0.6rem;color:var(--fg3);letter-spacing:0.15em">TIMELINE — arrastrá para reordenar</span>
+    <button onclick="toggleTimeline()" style="color:var(--fg3);cursor:crosshair;font-size:0.9rem">✕</button>
+  </div>
+  <div id="timelineTracks" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px"></div>
+</div>
+
+
+<!-- STATUS PANEL -->
+<div class="status-panel" id="statusPanel">
+  <div class="status-panel-header">
+    <span class="status-panel-title">// ESTADO DE SERVICIOS</span>
+    <button class="status-panel-close" onclick="toggleStatusPanel()">&#x2715;</button>
+  </div>
+  <div class="status-panel-body" id="statusPanelBody">
+    <div class="svc-row">
+      <span class="svc-icon">&#x23F3;</span>
+      <span class="svc-label" style="color:var(--fg3)">Verificando...</span>
+    </div>
+  </div>
+  <div class="status-panel-footer">
+    <span id="statusLastCheck" style="font-size:0.58rem">&#x2014;</span>
+    <button class="status-refresh-btn" onclick="refreshStatus()">&#x21BB; ACTUALIZAR</button>
+  </div>
+</div>
+<canvas id="matrix-canvas"></canvas>
+<canvas id="circuit-canvas"></canvas>
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+<div id="neural-field"></div>
+<footer class="omni-footer"></footer>
+<div class="neon-sig">OMNIFORGE · AI ENGINE · v12.0</div>
+
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   OMNIFORGE ULTRA UI — ANIMATION ENGINE
+   Custom Cursor · Matrix Rain · Circuit Paths · Neural Nodes
+   Magnetic Buttons · Stats Counters · Waveform · Glitch
+═══════════════════════════════════════════════════════════ */
+
+// ── CUSTOM CURSOR ──────────────────────────────────────────
+(function() {
+  const dot  = document.getElementById("cursor-dot");
+  const ring = document.getElementById("cursor-ring");
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  const trails = [];
+
+  document.addEventListener("mousemove", e => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.left = mx + "px"; dot.style.top = my + "px";
+
+    // Plasma trail
+    const t = document.createElement("div");
+    t.className = "cursor-trail";
+    const size = Math.random() * 6 + 3;
+    const colors = ["var(--pink)","var(--cyan)","var(--purple)"];
+    t.style.cssText = `
+      left:${mx}px;top:${my}px;
+      width:${size}px;height:${size}px;
+      background:${colors[Math.floor(Math.random()*3)]};
+      box-shadow:0 0 6px ${colors[0]};
+    `;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 600);
+  });
+
+  // Smooth ring follow
+  function animateRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + "px"; ring.style.top = ry + "px";
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  document.addEventListener("mousedown", () => ring.classList.add("clicking"));
+  document.addEventListener("mouseup",   () => ring.classList.remove("clicking"));
+
+  // Hover effect on interactive elements
+  document.querySelectorAll("button, a, input, textarea, [class*='btn']").forEach(el => {
+    el.addEventListener("mouseenter", () => {
+      ring.style.transform = "translate(-50%,-50%) scale(1.8)";
+      ring.style.borderColor = "var(--pink)";
+      ring.style.boxShadow   = "0 0 20px rgba(255,45,120,0.3)";
+    });
+    el.addEventListener("mouseleave", () => {
+      ring.style.transform = "translate(-50%,-50%) scale(1)";
+      ring.style.borderColor = "rgba(0,245,255,0.5)";
+      ring.style.boxShadow   = "none";
+    });
+  });
+})();
+
+// ── MATRIX RAIN ────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById("matrix-canvas");
+  const ctx    = canvas.getContext("2d");
+  const CHARS  = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ▓▒░■□◆◇";
+
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener("resize", resize);
+
+  const cols   = Math.floor(innerWidth / 18);
+  const drops  = Array.from({length: cols}, () => Math.random() * -50);
+
+  function draw() {
+    ctx.fillStyle = "rgba(13,13,26,0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = "12px 'Space Mono', monospace";
+
+    for (let i = 0; i < drops.length; i++) {
+      const char  = CHARS[Math.floor(Math.random() * CHARS.length)];
+      const alpha = Math.random() * 0.8 + 0.2;
+      ctx.fillStyle = i % 4 === 0
+        ? `rgba(0,245,255,${alpha})`
+        : i % 4 === 1
+          ? `rgba(255,45,120,${alpha * 0.6})`
+          : `rgba(157,78,221,${alpha * 0.4})`;
+      ctx.fillText(char, i * 18, drops[i] * 18);
+      drops[i]++;
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    }
+  }
+  setInterval(draw, 60);
+})();
+
+// ── CIRCUIT PATHS ───────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById("circuit-canvas");
+  const ctx    = canvas.getContext("2d");
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener("resize", resize);
+
+  // Generate circuit nodes
+  const nodes = Array.from({length: 18}, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+  }));
+
+  const packets = [];
+
+  function spawnPacket() {
+    const from = nodes[Math.floor(Math.random() * nodes.length)];
+    const to   = nodes[Math.floor(Math.random() * nodes.length)];
+    if (from !== to) packets.push({ from, to, t: 0, color: Math.random() > 0.5 ? "#00f5ff" : "#ff2d78" });
+    if (packets.length > 12) packets.shift();
+  }
+  setInterval(spawnPacket, 600);
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw circuit lines
+    ctx.setLineDash([4, 8]);
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+        if (dist < 300) {
+          const alpha = (1 - dist / 300) * 0.25;
+          ctx.strokeStyle = `rgba(0,245,255,${alpha})`;
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          // L-shaped circuit path
+          ctx.lineTo(nodes[i].x, nodes[j].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Node dots
+    ctx.setLineDash([]);
+    nodes.forEach(n => {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,245,255,0.4)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(0,245,255,0.15)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // Traveling packets
+    packets.forEach((p, i) => {
+      p.t = Math.min(p.t + 0.015, 1);
+      const x = p.from.x + (p.to.x - p.from.x) * p.t;
+      const y = p.from.y + (p.to.y - p.from.y) * p.t;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 12; ctx.shadowColor = p.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      if (p.t >= 1) packets.splice(i, 1);
+    });
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── NEURAL NODES ────────────────────────────────────────────
+(function() {
+  const field  = document.getElementById("neural-field");
+  const colors = ["rgba(255,45,120","rgba(0,245,255","rgba(157,78,221","rgba(181,255,45"];
+  for (let i = 0; i < 16; i++) {
+    const el   = document.createElement("div");
+    el.className = "neural-node";
+    const size  = Math.random() * 6 + 3;
+    const col   = colors[Math.floor(Math.random() * colors.length)];
+    const dur   = Math.random() * 14 + 8;
+    const delay = Math.random() * 10;
+    el.style.cssText = `
+      width:${size}px; height:${size}px;
+      background:${col},0.6);
+      box-shadow:0 0 ${size*2}px ${col},0.4);
+      left:${Math.random()*100}vw; top:${Math.random()*100}vh;
+      animation-duration:${dur}s; animation-delay:-${delay}s;
+      --dx1:${(Math.random()-0.5)*120}px; --dy1:${(Math.random()-0.5)*120}px;
+      --dx2:${(Math.random()-0.5)*120}px; --dy2:${(Math.random()-0.5)*120}px;
+    `;
+    field.appendChild(el);
+  }
+})();
+
+// ── WAVEFORM VISUALIZER ─────────────────────────────────────
+(function() {
+  const wf = document.getElementById("waveform");
+  if (!wf) return;
+  const BAR_COUNT = 22;
+  const heights   = Array.from({length: BAR_COUNT}, () => Math.random() * 24 + 6);
+
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const b = document.createElement("div");
+    b.className = "wave-bar";
+    const dur   = Math.random() * 0.8 + 0.5;
+    const delay = Math.random() * 1.5;
+    b.style.cssText = `
+      --wh:${heights[i]}px;
+      animation-duration:${dur}s;
+      animation-delay:${delay}s;
+      height:${heights[i]}px;
+    `;
+    wf.appendChild(b);
+  }
+
+  // Animate heights continuously
+  setInterval(() => {
+    wf.querySelectorAll(".wave-bar").forEach(b => {
+      const h = Math.random() * 26 + 4;
+      b.style.setProperty("--wh", h + "px");
+    });
+  }, 800);
+})();
+
+// ── DNA HELIX (in processing panel) ──────────────────────────
+(function() {
+  const dna = document.getElementById("dna-loader");
+  if (!dna) return;
+  const PAIRS = 10;
+  for (let i = 0; i < PAIRS; i++) {
+    const pair = document.createElement("div");
+    pair.className = "dna-pair";
+    pair.style.animationDelay = (i * 0.12) + "s";
+    pair.innerHTML = `
+      <div class="dna-node dna-node-l"></div>
+      <div class="dna-bridge"></div>
+      <div class="dna-node dna-node-r"></div>
+    `;
+    dna.appendChild(pair);
+  }
+})();
+
+// ── GLITCH TITLE ────────────────────────────────────────────
+(function() {
+  const logo = document.querySelector(".logo-name");
+  if (!logo) return;
+  logo.classList.add("glitch");
+  logo.setAttribute("data-text", logo.textContent);
+})();
+
+// ── LOGO RINGS ──────────────────────────────────────────────
+(function() {
+  const icon = document.querySelector(".logo-icon");
+  if (!icon) return;
+  icon.style.position = "relative";
+  const rings = document.createElement("div");
+  rings.className = "logo-rings";
+  rings.innerHTML = `
+    <div class="logo-ring"></div>
+    <div class="logo-ring"></div>
+    <div class="logo-ring"></div>
+  `;
+  icon.appendChild(rings);
+})();
+
+// ── CORNER BRACKETS on PANELS ───────────────────────────────
+(function() {
+  document.querySelectorAll(".panel").forEach(p => {
+    ["tl","tr","bl","br"].forEach(pos => {
+      const c = document.createElement("div");
+      c.className = `corner corner-${pos}`;
+      p.appendChild(c);
+    });
+  });
+})();
+
+// ── WAVEFORM in HEADER ──────────────────────────────────────
+(function() {
+  const pills = document.querySelector(".header-pills");
+  if (!pills) return;
+  const wfWrap = document.createElement("div");
+  wfWrap.id = "waveform";
+  wfWrap.style.cssText = "margin-right:8px;opacity:0.6;align-items:center;";
+  pills.insertBefore(wfWrap, pills.firstChild);
+})();
+
+// ── STATS BAR ────────────────────────────────────────────────
+(function() {
+  const main = document.querySelector(".main");
+  if (!main) return;
+  const bar = document.createElement("div");
+  bar.id = "statsBar";
+  bar.innerHTML = `
+    <div class="stat-cell">
+      <span class="stat-label">Videos Forged</span>
+      <span class="stat-counter" id="statVideos">0</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-label">Scenes Built</span>
+      <span class="stat-counter" id="statScenes">0</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-label">Images Gen</span>
+      <span class="stat-counter" id="statImages">0</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-label">Uptime</span>
+      <span class="stat-counter" id="statUptime">0s</span>
+    </div>
+  `;
+  main.parentNode.insertBefore(bar, main);
+
+  // Animated counters
+  let videos = 0, scenes = 0, images = 0;
+  const start = Date.now();
+
+  function animateCount(el, target) {
+    let cur = +el.textContent || 0;
+    const step = Math.ceil((target - cur) / 12);
+    const iv = setInterval(() => {
+      cur = Math.min(cur + step, target);
+      el.textContent = cur;
+      if (cur >= target) clearInterval(iv);
+    }, 40);
+  }
+
+  // Update uptime
+  setInterval(() => {
+    const s = Math.floor((Date.now() - start) / 1000);
+    const el = document.getElementById("statUptime");
+    if (el) el.textContent = s < 60 ? s + "s" : Math.floor(s/60) + "m " + (s%60) + "s";
+  }, 1000);
+
+  // Hook into generate to update stats
+  window._statsUpdate = (s, img) => {
+    videos++;
+    scenes += s;
+    images += img;
+    const vEl = document.getElementById("statVideos");
+    const sEl = document.getElementById("statScenes");
+    const iEl = document.getElementById("statImages");
+    if (vEl) animateCount(vEl, videos);
+    if (sEl) animateCount(sEl, scenes);
+    if (iEl) animateCount(iEl, images);
+  };
+})();
+
+// ── ENERGY BEAMS in PROCESSING ──────────────────────────────
+(function() {
+  const proc = document.getElementById("stateProcessing");
+  if (!proc) return;
+  const field = document.createElement("div");
+  field.id = "energyField";
+  for (let i = 0; i < 4; i++) {
+    const beam = document.createElement("div");
+    beam.className = "energy-beam";
+    beam.style.cssText = `
+      top: ${Math.random()*100}%;
+      animation-duration: ${Math.random()*2+1.5}s;
+      animation-delay: ${Math.random()*2}s;
+    `;
+    field.appendChild(beam);
+  }
+  proc.insertBefore(field, proc.firstChild);
+})();
+
+// ── MAGNETIC BUTTON EFFECT ───────────────────────────────────
+(function() {
+  const btn = document.getElementById("genBtn");
+  if (!btn) return;
+  btn.addEventListener("mousemove", e => {
+    const r   = btn.getBoundingClientRect();
+    const dx  = e.clientX - (r.left + r.width  / 2);
+    const dy  = e.clientY - (r.top  + r.height / 2);
+    btn.style.transform = `translate(${dx * 0.15}px, ${dy * 0.15}px) scale(1.01)`;
+  });
+  btn.addEventListener("mouseleave", () => {
+    btn.style.transform = "translate(0,0) scale(1)";
+  });
+})();
+
+// ── LIVE BADGE in HEADER ──────────────────────────────────────
+(function() {
+  const sub = document.querySelector(".logo-sub");
+  if (!sub) return;
+  const badge = document.createElement("div");
+  badge.className = "live-badge";
+  badge.textContent = "LIVE";
+  badge.style.cssText = "margin-top:4px;";
+  sub.parentNode.insertBefore(badge, sub.nextSibling);
+})();
+
+// ── TYPING ANIMATION on proc-detail ──────────────────────────
+const _origSetProcDetail = window.setProcDetail || (() => {});
+const _procDetailEl = document.getElementById("procDetail");
+if (_procDetailEl) {
+  const cursor = document.createElement("span");
+  cursor.className = "typing-cursor";
+  _procDetailEl.appendChild(cursor);
+}
+
+// ── TRIGGER stats update on finalize ─────────────────────────
+const _origFinalize = window.finalize;
+if (typeof _origFinalize === "function") {
+  window.finalize = function(url, id, thumb) {
+    _origFinalize(url, id, thumb);
+    if (window._statsUpdate) window._statsUpdate(3, 3);
+  };
+}
+
+// ── IDLE ANIMATION — ASCII art in idle ───────────────────────
+(function() {
+  const idle = document.getElementById("stateIdle");
+  if (!idle) return;
+  const ascii = document.createElement("div");
+  ascii.style.cssText = `
+    font-family:var(--mono); font-size:0.45rem; color:rgba(0,245,255,0.08);
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    white-space:pre; line-height:1.4; pointer-events:none; letter-spacing:0.05em;
+    animation: hintBlink 6s ease-in-out infinite;
+  `;
+  ascii.textContent = `
+  ╔═══════════════════════════╗
+  ║  OMNIFORGE  ENGINE  v12   ║
+  ║  NEURAL PIPELINE READY    ║
+  ╚═══════════════════════════╝`;
+  idle.appendChild(ascii);
+})();
+
+console.log("%c OMNIFORGE ULTRA UI LOADED ", "background:#ff2d78;color:#fff;font-size:14px;font-weight:bold;padding:4px 8px;");
+</script>
+
+
+<script>
+/* ═══════════════════════════════════════════════
+   OMNIFORGE FEATURES v13 — History, Templates,
+   Timeline, Preview, Themes, Subtitle Editor,
+   Queue, Advanced Toggles
+═══════════════════════════════════════════════ */
+
+// ── THEME SWITCHER ──────────────────────────────
+(function() {
+  const saved = localStorage.getItem("omni_theme") || "neon";
+  applyTheme(saved);
+
+  document.querySelectorAll(".theme-dot").forEach(btn => {
+    if (btn.dataset.theme === saved) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      const theme = btn.dataset.theme;
+      applyTheme(theme);
+      localStorage.setItem("omni_theme", theme);
+      document.querySelectorAll(".theme-dot").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+})();
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme === "neon" ? "" : theme);
+  S && (S.CURRENT_THEME = theme);
+}
+
+// ── ADVANCED OPTIONS TOGGLES ─────────────────────
+(function() {
+  const newToggles = [
+    { id: "chaptersToggle", key: "WITH_CHAPTERS",  label: "Capítulos",    hint: "Divide en intro/dev/clímax/outro" },
+    { id: "docShotsToggle", key: "WITH_DOC_SHOTS", label: "Doc Shots",    hint: "Close-up, wide, medium alternados" },
+    { id: "multiVoiceToggle",key:"MULTI_VOICE",    label: "Multi Voz",    hint: "Narrador + personaje secundario"  },
+    { id: "karaokeToggle",  key: "WITH_KARAOKE",   label: "Karaoke",      hint: "Subtítulos palabra por palabra"   },
+    { id: "chainToggle",    key: "WITH_CHAIN",     label: "Prompt Chain", hint: "Cada escena referencia la anterior"},
+    { id: "coherenceToggle",key: "WITH_COHERE",    label: "Coherencia",   hint: "Paleta visual consistente", checked: true },
+    { id: "thumbToggle",    key: "WITH_THUMB",     label: "Thumbnail",    hint: "Genera thumbnail del video", checked: true },
+    { id: "queueToggle",    key: "USE_QUEUE",      label: "Modo Cola",    hint: "Agrega a la cola sin esperar" },
+  ];
+
+  // Find the toggle-row div and inject new toggles
+  const rows = document.querySelectorAll(".toggle-row");
+  const lastRow = rows[rows.length - 1];
+  if (!lastRow) return;
+
+  const newRow = document.createElement("div");
+  newRow.className = "toggle-row";
+  newRow.style.cssText = "margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05)";
+  newToggles.forEach(t => {
+    const label = document.createElement("label");
+    label.className = "toggle-label";
+    label.title = t.hint;
+    label.innerHTML = `
+      <input type="checkbox" id="${t.id}" ${t.checked ? "checked" : ""} onchange="S.${t.key}=this.checked">
+      <span class="toggle-track"></span>
+      <span>${t.label}</span>
+    `;
+    if (t.checked && S) S[t.key] = true;
+    newRow.appendChild(label);
+  });
+  lastRow.parentNode.insertBefore(newRow, lastRow.nextSibling);
+})();
+
+// ── PREVIEW MODAL ───────────────────────────────
+let _previewApproved = false;
+let _previewPrompt   = "";
+
+window.openPreviewModal = async function() {
+  const prompt = document.getElementById("promptInput")?.value?.trim();
+  if (!prompt) { toast("Escribe el concepto primero", "error"); return; }
+  _previewPrompt = prompt;
+
+  const modal = document.getElementById("previewModal");
+  modal.style.display = "flex";
+  document.getElementById("previewImg").style.display = "none";
+  document.getElementById("previewSpinner").style.display = "block";
+  document.getElementById("previewText").textContent = "";
+
+  try {
+    const r    = await fetch(`${API}/preview`, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ text: prompt, visualStyle: S.VISUAL_STYLE || "cinematic", format: S.FORMAT })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+
+    const img = document.getElementById("previewImg");
+    img.src   = data.imageUrl;
+    img.style.display = "block";
+    document.getElementById("previewSpinner").style.display = "none";
+    document.getElementById("previewText").textContent =
+      `ESCENA 1: "${data.scene?.text || ""}"  •  TÍTULO: "${data.title || ""}"`;
+  } catch(e) {
+    document.getElementById("previewSpinner").textContent = "Error: " + e.message;
+  }
+};
+
+window.closePreview = function() {
+  document.getElementById("previewModal").style.display = "none";
+};
+
+window.approvePreview = function() {
+  closePreview();
+  document.getElementById("genBtn").click();
+};
+
+// ── HISTORY ─────────────────────────────────────
+window.toggleHistory = async function() {
+  const panel = document.getElementById("historyPanel");
+  const isOpen = panel.style.display !== "none";
+  panel.style.display = isOpen ? "none" : "block";
+  if (!isOpen) await loadHistory();
+};
+
+async function loadHistory() {
+  const list = document.getElementById("historyList");
+  list.innerHTML = `<div style="font-family:var(--mono);font-size:0.65rem;color:var(--fg3);text-align:center;padding:20px">Cargando...</div>`;
+  try {
+    const r = await fetch(`${API}/history`);
+    const data = await r.json();
+    if (!data.projects?.length) {
+      list.innerHTML = `<div style="font-family:var(--mono);font-size:0.65rem;color:var(--fg3);text-align:center;padding:30px">Sin historial aún</div>`;
+      return;
+    }
+    list.innerHTML = data.projects.map(p => {
+      const date   = new Date(p.created_at).toLocaleString("es-AR");
+      const status = p.status === "done" ? "done" : p.status === "error" ? "error" : "running";
+      const url    = p.video_url ? `<a href="${p.video_url}" target="_blank" class="btn-dl" style="font-size:0.55rem;padding:4px 10px">Ver ▶</a>` : "";
+      return `
+        <div class="history-card">
+          ${p.thumbnail ? `<img class="history-thumb" src="${p.thumbnail}" onerror="this.style.display='none'">` : `<div class="history-thumb"></div>`}
+          <div class="history-info">
+            <div class="history-title">${p.title || p.prompt?.slice(0,40) || "Sin título"}</div>
+            <div class="history-meta history-status-${status}">${p.status?.toUpperCase()} · ${p.scenes || 0} escenas · ${p.format || "portrait"} · ${p.style || ""}</div>
+            <div class="history-meta" style="opacity:0.5">${date}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            ${url}
+            <button data-hid="${p.id}" onclick="deleteHistory(this.dataset.hid)" style="font-family:var(--mono);font-size:0.5rem;color:var(--fg3);padding:4px 8px;border:1px solid rgba(255,59,59,0.2);border-radius:4px;cursor:crosshair" title="Eliminar">✕</button>
+          </div>
+        </div>`;
+    }).join("");
+  } catch(e) { list.innerHTML = `<div style="color:#ff3b3b;font-family:var(--mono);font-size:0.65rem;text-align:center;padding:20px">Error: ${e.message}</div>`; }
+}
+
+window.deleteHistory = async function(id) {
+  if (!confirm("¿Eliminar este proyecto del historial?")) return;
+  await fetch(`${API}/history/${id}`, { method:"DELETE" });
+  await loadHistory();
+};
+
+// ── TEMPLATES ───────────────────────────────────
+window.toggleTemplates = async function() {
+  const panel = document.getElementById("templatesPanel");
+  const isOpen = panel.style.display !== "none";
+  panel.style.display = isOpen ? "none" : "block";
+  if (!isOpen) await loadTemplates();
+};
+
+async function loadTemplates() {
+  const list = document.getElementById("templatesList");
+  try {
+    const r    = await fetch(`${API}/templates`);
+    const data = await r.json();
+    // Store opts in a registry to avoid inline JSON in onclick attributes
+    window._tplRegistry = {};
+    list.innerHTML = data.templates.map(t => {
+      window._tplRegistry[t.id] = t.opts;
+      const badges = Object.entries(t.opts || {})
+        .filter(([k,v]) => v === true || (typeof v === "string" && v !== "auto" && v !== "es"))
+        .slice(0, 4)
+        .map(([k,v]) => `<span class="template-badge">${k.replace(/with|With/g,"").replace(/([A-Z])/g," $1").trim()}</span>`)
+        .join("");
+      const safeId = t.id.replace(/[^a-zA-Z0-9_-]/g, "");
+      return `
+        <div class="template-card" onclick="applyTemplateById('${safeId}')">
+          <div class="template-name">${t.name}</div>
+          <div class="template-desc">${t.description || ""}</div>
+          <div class="template-badges">${badges}</div>
+        </div>`;
+    }).join("");
+  } catch(e) { list.innerHTML = `<div style="color:#ff3b3b;padding:20px">${e.message}</div>`; }
+}
+
+window.applyTemplateById = function(id) {
+  const opts = window._tplRegistry?.[id];
+  if (!opts) { toast("Plantilla no encontrada", "error"); return; }
+  applyTemplate(opts, id);
+};
+
+window.applyTemplate = function(opts, id) {
+  Object.assign(S, {
+    VISUAL_STYLE:  opts.visualStyle  || S.VISUAL_STYLE,
+    TRANS_STYLE:   opts.transStyle   || S.TRANS_STYLE,
+    WITH_GRADE:    opts.withGrade    !== undefined ? opts.withGrade   : S.WITH_GRADE,
+    KEN_BURNS:     opts.kenBurns     !== undefined ? opts.kenBurns   : S.KEN_BURNS,
+    WITH_HUD:      opts.withHUD      || false,
+    WITH_CHAPTERS: opts.withChapters || false,
+    WITH_DOC_SHOTS:opts.withDocShots || false,
+    TEMPLATE_ID:   id,
+  });
+  toast(`Plantilla aplicada ✓`, "success");
+  toggleTemplates();
+  // Sync visual UI
+  syncUIToS();
+};
+
+window.saveTemplate = async function() {
+  const name = document.getElementById("tplNameInput")?.value?.trim();
+  if (!name) { toast("Escribe un nombre primero", "error"); return; }
+  const opts = {
+    visualStyle: S.VISUAL_STYLE, transStyle: S.TRANS_STYLE, fps: S.FPS,
+    withGrade: S.WITH_GRADE, kenBurns: S.KEN_BURNS, withHUD: S.WITH_HUD,
+    withChapters: S.WITH_CHAPTERS, withDocShots: S.WITH_DOC_SHOTS,
+    multiVoice: S.MULTI_VOICE, withKaraoke: S.WITH_KARAOKE,
+  };
+  await fetch(`${API}/templates`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name, opts}) });
+  toast("Plantilla guardada ✓", "success");
+  await loadTemplates();
+};
+
+function syncUIToS() {
+  // Sync style cards
+  document.querySelectorAll(".style-card").forEach(b => {
+    b.classList.toggle("active", b.dataset?.value === S.VISUAL_STYLE || b.textContent?.toLowerCase().includes(S.VISUAL_STYLE));
+  });
+}
+
+// ── SUBTITLE EDITOR ─────────────────────────────
+let _pendingScenes = null;
+let _pendingRender = null;
+
+window.openSubEditor = function(scenes, onApply) {
+  _pendingScenes = [...scenes];
+  _pendingRender = onApply;
+  const fields = document.getElementById("subtitleFields");
+  fields.innerHTML = scenes.map((s, i) => `
+    <div class="subtitle-field">
+      <span class="subtitle-scene-num">ESCENA ${i+1} ${s.chapter ? "· " + s.chapter.toUpperCase() : ""}</span>
+      <textarea class="subtitle-input" data-idx="${i}" rows="2">${s.text || ""}</textarea>
+      ${s.lower ? `<textarea class="subtitle-input" data-idx="${i}" data-field="lower" rows="1" placeholder="Lower third...">${s.lower}</textarea>` : ""}
+    </div>
+  `).join("");
+  document.getElementById("subtitleEditor").style.display = "block";
+};
+
+window.closeSubEditor = function() {
+  document.getElementById("subtitleEditor").style.display = "none";
+};
+
+window.applySubtitles = function() {
+  document.querySelectorAll(".subtitle-input").forEach(inp => {
+    const idx   = +inp.dataset.idx;
+    const field = inp.dataset.field || "text";
+    if (_pendingScenes && _pendingScenes[idx]) {
+      _pendingScenes[idx][field] = inp.value.trim();
+    }
+  });
+  closeSubEditor();
+  if (_pendingRender) _pendingRender(_pendingScenes);
+  toast("Subtítulos actualizados ✓", "success");
+};
+
+// ── TIMELINE ────────────────────────────────────
+let _timelineScenes = [];
+let _dragIdx = null;
+
+window.toggleTimeline = function() {
+  const panel = document.getElementById("timelinePanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+};
+
+function updateTimeline(scenes, imageUrls) {
+  _timelineScenes = [...scenes];
+  const tracks = document.getElementById("timelineTracks");
+  if (!tracks) return;
+
+  tracks.innerHTML = scenes.map((s, i) => {
+    const img = imageUrls?.[i] || "";
+    return `
+      <div class="timeline-track" draggable="true"
+        ondragstart="onTrackDragStart(${i})"
+        ondragover="onTrackDragOver(event,${i})"
+        ondrop="onTrackDrop(${i})"
+        ondragend="onTrackDragEnd()">
+        ${img ? `<img class="timeline-img" src="${img}" title="${s.text||""}">` :
+                `<div class="timeline-img" style="display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.04)"><span style="font-family:var(--mono);font-size:0.55rem;color:var(--fg3)">${i+1}</span></div>`}
+        <div class="timeline-num">S${i+1} ${s.chapter ? "· "+s.chapter.slice(0,3).toUpperCase() : ""}</div>
+      </div>`;
+  }).join("");
+  document.getElementById("timelinePanel").style.display = "block";
+}
+
+window.onTrackDragStart = i => { _dragIdx = i; document.querySelectorAll(".timeline-track")[i]?.classList.add("timeline-dragging"); };
+window.onTrackDragOver  = (e,i) => { e.preventDefault(); };
+window.onTrackDrop      = i => {
+  if (_dragIdx === null || _dragIdx === i) return;
+  const arr = [..._timelineScenes];
+  const item = arr.splice(_dragIdx, 1)[0];
+  arr.splice(i, 0, item);
+  _timelineScenes = arr;
+  updateTimeline(arr, null);
+  toast(`Escena ${_dragIdx+1} → posición ${i+1}`, "info");
+};
+window.onTrackDragEnd = () => { _dragIdx = null; document.querySelectorAll(".timeline-track").forEach(t => t.classList.remove("timeline-dragging")); };
+
+// ── QUEUE INDICATOR ─────────────────────────────
+setInterval(async () => {
+  try {
+    const r = await fetch(`${API}/queue`);
+    const data = await r.json();
+    const ind = document.getElementById("queueIndicator");
+    if (!ind) return;
+    if (data.length > 0 || data.processing) {
+      ind.style.display = "block";
+      ind.textContent = `Q:${data.length}${data.processing ? "▶" : ""}`;
+    } else {
+      ind.style.display = "none";
+    }
+  } catch {}
+}, 5000);
+
+// ── HOOK INTO generate() to show subtitle editor ─
+const _origGenerate = window.generate;
+if (typeof _origGenerate === "function") {
+  window.generate = async function() {
+    // Generate is called — after we get scenes, offer subtitle editing
+    // We intercept the data response to show the editor
+    await _origGenerate.call(this);
+  };
+}
+
+// ── HOOK finalize to update timeline + history ───
+const _prevFinalize2 = window.finalize;
+window.finalize = function(url, id, thumb) {
+  _prevFinalize2 && _prevFinalize2(url, id, thumb);
+  // Reload history badge
+  setTimeout(() => {
+    const statVideos = document.getElementById("statVideos");
+    if (statVideos) {
+      const cur = parseInt(statVideos.textContent) || 0;
+      statVideos.textContent = cur + 1;
+    }
+  }, 1000);
+};
+
+
+// ── MODEL SELECTOR ──────────────────────────────
+window.selectModel = function(btn, model) {
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  S.VIDEO_MODEL = model;
+  const names = {
+    'auto':        'AUTO (cascada)',
+    'veo31':       'Veo 3.1 Fast',
+    'sora2':       'Sora 2',
+    'flux':        'AIML / Flux Dev',
+    'pollinations':'Pollinations Flux',
+  };
+  toast(`Modelo: ${names[model] || model}`, 'info');
+};
+
+// Inyectar modelo seleccionado en el payload de generación
+const _origBuildPayload = window.buildPayload;
+if (typeof window.buildPayload === 'function') {
+  window.buildPayload = function() {
+    const p = _origBuildPayload();
+    if (S.VIDEO_MODEL && S.VIDEO_MODEL !== 'auto') p.videoModel = S.VIDEO_MODEL;
+    return p;
+  };
+}
+
+// también parchar directamente la función generate si buildPayload no existe
+const _prevGen3 = window.generate;
+if (typeof _prevGen3 === 'function') {
+  window.generate = async function() {
+    // el modelo ya estará en S.VIDEO_MODEL — se pasa via payload en generate()
+    return _prevGen3.call(this);
+  };
+}
+
+S.VIDEO_MODEL = 'auto'; // default
+
+console.log("%c OMNIFORGE FEATURES v13 LOADED ", "background:#9d4edd;color:#fff;font-size:12px;padding:3px 8px");
+
+// ═══════════════════════════════════════════════════════
+//  SERVICE STATUS PANEL JS
+// ═══════════════════════════════════════════════════════
+(function() {
+  var panelOpen = false;
+  var refreshTimer = null;
+
+  window.toggleStatusPanel = function() {
+    panelOpen = !panelOpen;
+    var p = document.getElementById('statusPanel');
+    if (p) p.classList.toggle('open', panelOpen);
+    if (panelOpen) {
+      refreshStatus();
+      refreshTimer = setInterval(refreshStatus, 30000);
+    } else {
+      clearInterval(refreshTimer);
+    }
+  };
+
+  window.refreshStatus = function() {
+    var body  = document.getElementById('statusPanelBody');
+    var gdot  = document.getElementById('statusGlobalDot');
+    var glbl  = document.getElementById('statusGlobalLabel');
+    var last  = document.getElementById('statusLastCheck');
+    if (!body) return;
+
+    fetch('/health/detail')
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var rows = data.services.map(function(s) {
+          var dot  = s.ok ? 'ok' : 'fail';
+          var ms   = s.ok ? (s.ms + 'ms') : 'ERR';
+          return '<div class="svc-row">' +
+            '<span class="svc-icon">' + s.icon + '</span>' +
+            '<span class="svc-label">' + s.label + '</span>' +
+            '<span class="svc-ms">' + ms + '</span>' +
+            '<div class="svc-dot ' + dot + '"></div>' +
+            '</div>';
+        });
+        body.innerHTML = rows.join('');
+
+        var allOk = data.services.every(function(s){ return s.ok; });
+        var okCnt = data.services.filter(function(s){ return s.ok; }).length;
+        if (gdot) gdot.className = 'svc-dot ' + (allOk ? 'ok' : 'fail');
+        if (glbl) glbl.textContent = allOk
+          ? 'TODO OK (' + okCnt + '/' + data.services.length + ')'
+          : okCnt + '/' + data.services.length + ' OK';
+
+        var up = data.uptime || 0;
+        var h = Math.floor(up/3600), m = Math.floor((up%3600)/60), s = up%60;
+        var upStr = h > 0 ? (h+'h '+m+'m') : m > 0 ? (m+'m '+s+'s') : (s+'s');
+        if (last) last.textContent = 'uptime ' + upStr + ' · ' + new Date().toLocaleTimeString('es-AR');
+      })
+      .catch(function(e) {
+        if (body) body.innerHTML = '<div class="svc-row"><span class="svc-label" style="color:var(--red)">Server offline</span></div>';
+        if (gdot) gdot.className = 'svc-dot fail';
+        if (glbl) glbl.textContent = 'OFFLINE';
+      });
+  };
+
+  // Silently ping on load
+  setTimeout(function() {
+    fetch('/health/detail')
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var allOk = data.services.every(function(s){ return s.ok; });
+        var okCnt = data.services.filter(function(s){ return s.ok; }).length;
+        var gdot = document.getElementById('statusGlobalDot');
+        var glbl = document.getElementById('statusGlobalLabel');
+        if (gdot) gdot.className = 'svc-dot ' + (allOk ? 'ok' : 'fail');
+        if (glbl) glbl.textContent = allOk ? 'TODO OK' : okCnt + '/' + data.services.length + ' OK';
+      })
+      .catch(function() {
+        var gdot = document.getElementById('statusGlobalDot');
+        var glbl = document.getElementById('statusGlobalLabel');
+        if (gdot) gdot.className = 'svc-dot fail';
+        if (glbl) glbl.textContent = 'OFFLINE';
+      });
+  }, 2000);
+})();
+</script>
+
+</body>
+</html>
