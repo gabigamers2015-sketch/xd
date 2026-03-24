@@ -1,3 +1,5 @@
+require("dotenv").config(); // ← Lee el .env automáticamente
+
 /**
  * ============================================================================
  * 🚀 OMNIFORGE — v13.3.0 (SERVER-SIDE IMAGEN + J2V RENDER FIX)
@@ -91,10 +93,11 @@ const app = express();
 // ⚙️  KEYS
 // ============================================================================
 const CONFIG = {
-    OPENROUTER_KEY: "",
-    JSON2VIDEO_KEY: "",
-    AICC_KEY:       "", // AIML API - Qwen Image
-    IMGBB_KEY:      "",
+    OPENROUTER_KEY: process.env.OPENROUTER_KEY  || "",
+    JSON2VIDEO_KEY: process.env.JSON2VIDEO_KEY  || "",
+    AICC_KEY:       process.env.AICC_KEY        || "", // AIML API - Qwen Image
+    GOOGLE_AI_KEY:  process.env.GOOGLE_AI_KEY   || "",
+    IMGBB_KEY:      process.env.IMGBB_KEY       || "",
     PORT:           3000,
     LOG_FILE:       path.join(__dirname, "omni_audit.log"),
     VERSION:        "13.3.0",
