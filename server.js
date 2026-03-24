@@ -91,7 +91,7 @@ const app = express();
 // ⚙️  KEYS
 // ============================================================================
 const CONFIG = {
-    OPENROUTER_KEY: "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",
+    OPENROUTER_KEY: "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",
     JSON2VIDEO_KEY: "3SCVBQqgJGsVB0eMVUZY15gt5QSQe6CF1C6DdcZV",
     AICC_KEY:       "sk-4Kza9DIAB5AQH1PZ2e1avxBGeDR0M4emu0hoUFt8hrJYAfXc", // AIML API - Qwen Image
     GOOGLE_AI_KEY:  "AIzaSyCM27w5-1Q7c2GQn9RKzrv8iyyiCNnNECQ",
