@@ -1,0 +1,166 @@
+{
+  "name": "omniforge-ai-engine",
+  "version": "13.3.0",
+  "description": "Pipeline industrial de generacion de video con IA — FIX v13.3: muted/loop/extra-time en video elements, Sentry SDK, Postman debug suite, validateJ2VPayload()",
+  "author": "OmniForge Team",
+  "license": "MIT",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "dev:debug": "node --inspect server.js",
+    "logs": "tail -f omni_audit.log",
+    "logs:clear": "echo '' > omni_audit.log && echo 'Log cleared'",
+    "check": "node --check server.js && echo 'Syntax OK'",
+    "health": "curl -s http://localhost:3000/health | node -e \"process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d)))\"",
+    "debug:payload": "curl -s -X POST http://localhost:3000/debug/payload -H 'Content-Type: application/json' -d '{\"text\":\"un gato\",\"numEscenas\":2}' | node -e \"process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(JSON.parse(d),null,2)))\"",
+    "debug:sentry": "curl -s http://localhost:3000/debug/sentry",
+    "test:imagen": "node -e \"const axios=require('axios');axios.post('http://localhost:3000/generate',{text:'test gato',numEscenas:1}).then(r=>console.log(r.data)).catch(e=>console.error(e.message))\"",
+    "clean": "node -e \"require('fs').readdirSync('tmp').forEach(f=>require('fs').unlinkSync('tmp/'+f))\" 2>/dev/null || echo 'Nothing to clean'",
+    "size": "wc -l server.js index.html && du -sh .",
+    "tunnel": "npx localtunnel --port 3000 --subdomain omniforge-ai",
+    "update-check": "npm outdated"
+  },
+  "dependencies": {
+    "@sentry/node": "^8.0.0",
+    "axios": "^1.7.2",
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "~7.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "nodemonConfig": {
+    "watch": ["server.js"],
+    "ext": "js",
+    "ignore": ["omni_audit.log", "tmp/", "node_modules/"],
+    "delay": "500",
+    "env": { "NODE_ENV": "development" }
+  },
+  "keywords": [
+    "ai", "video-generation", "google-imagen", "gemini", "json2video",
+    "pollinations", "imgbb", "openrouter", "gpt4", "text-to-video",
+    "node", "express", "pipeline", "cinematic", "tts", "azure-voice",
+    "beat-sync", "ken-burns", "color-grading", "omniforge", "sentry"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabigamers2015-sketch/xd"
+  },
+  "bugs": { "url": "https://github.com/gabigamers2015-sketch/xd/issues" },
+  "homepage": "http://localhost:3000",
+  "config": {
+    "port": "3000",
+    "log_file": "omni_audit.log",
+    "tmp_dir": "tmp",
+    "max_scenes": "10",
+    "img_delay_ms": "5000",
+    "version_label": "v13.3.0-ULTRA"
+  },
+  "omniforge": {
+    "v13_3_fixes": [
+      "FIX #1 CRÍTICO: video elements con muted:true, loop:1 (number), extra-time:0",
+      "FIX #2: audio removido de root → movido como elemento en scene[0]",
+      "FIX #3: loop boolean → number enforceado en creación Y en sanitizeJ2VPayload()",
+      "FIX #4: Sentry SDK (@sentry/node) — tracking de errores en producción",
+      "FIX #5: validateJ2VPayload() — validación pre-envío con log de issues",
+      "FIX #6: /debug/payload endpoint — inspección del payload sin render real",
+      "FIX #7: /debug/sentry endpoint — test de integración Sentry",
+      "NEW: Postman collection en workspace OmniForge AI Engine",
+      "NEW: Sentry proyecto omniforge-ai-engine en org xdorganites"
+    ],
+    "sentry": {
+      "org": "xdorganites",
+      "project": "omniforge-ai-engine",
+      "dsn": "https://847aff2b77429348750b273bd9900284@o4511096562253824.ingest.us.sentry.io/4511096759779328",
+      "dashboard": "https://xdorganites.sentry.io/projects/omniforge-ai-engine/"
+    },
+    "postman": {
+      "workspace_id": "692ecf2a-400a-40d6-b11a-e3d047d76576",
+      "workspace_name": "OmniForge AI Engine",
+      "spec_id": "3732641a-996d-4580-8d87-c944967df995",
+      "debug_endpoints": [
+        "POST /debug/payload — inspecciona payload J2V sin render",
+        "GET  /debug/sentry  — test Sentry integration"
+      ]
+    },
+    "pipeline": {
+      "text_models": [
+        "openai/gpt-4o-mini",
+        "google/gemini-2.0-flash-lite-001",
+        "mistralai/mistral-small-3.1-24b-instruct:free"
+      ],
+      "image_sources": [
+        "aiml-api (qwen / flux)", "google-imagen-4.0",
+        "pollinations-flux", "pollinations-turbo", "pollinations-flux-realism",
+        "pollinations-flux-anime", "pollinations-flux-cablyai",
+        "unsplash-source", "loremflickr", "picsum"
+      ],
+      "visual_styles": ["cinematic","anime","documentary","cyberpunk","fantasy","vintage"],
+      "transition_packs": ["cinematic","dynamic","smooth","random"],
+      "voices_available": [
+        "es-MX-DaliaNeural","es-MX-JorgeNeural","es-ES-ElviraNeural",
+        "es-ES-AlvaroNeural","es-CO-SalomeNeural","en-US-JennyNeural"
+      ],
+      "output_formats": [
+        {"id":"portrait","resolution":"720x1280","ratio":"9:16","platform":"TikTok/Reels"},
+        {"id":"landscape","resolution":"1280x720","ratio":"16:9","platform":"YouTube"},
+        {"id":"square","resolution":"1080x1080","ratio":"1:1","platform":"Instagram"}
+      ],
+      "fps_options": [24,30,60],
+      "max_scene_duration_sec": 12,
+      "min_scene_duration_sec": 3,
+      "new_features_v13_3": [
+        "Sentry error tracking (auto-capture en /generate y payload inválido)",
+        "validateJ2VPayload() pre-send validator con 8 reglas de J2V API",
+        "POST /debug/payload — dry-run del pipeline sin consume créditos J2V",
+        "GET /debug/sentry — health check de la integración Sentry",
+        "Video elements: muted, loop:1, extra-time:0 enforceados",
+        "sanitizeJ2VPayload FIX#6: video auto-heal en tiempo de sanidad",
+        "Postman workspace + OpenAPI 3.1 spec publicados",
+        "npm run debug:payload — inspección desde terminal"
+      ]
+    },
+    "features": {
+      "ken_burns_zoom": true, "director_of_photography": true,
+      "color_grading_lut": true, "hud_overlay": true,
+      "lower_thirds": true, "parallax_simulation": true,
+      "glitch_transition": true, "beat_sync_duration": true,
+      "ab_prompt_testing": true, "sfx_ambient_layer": true,
+      "auto_translation": true, "character_continuity": true,
+      "intro_slate": true, "outro_credits": true,
+      "discord_webhook": true, "sse_live_preview": true,
+      "thumbnail_generator": true,
+      "sentry_error_tracking": true,
+      "j2v_payload_validator": true,
+      "postman_debug_suite": true
+    },
+    "ui": {
+      "cursor": "custom plasma trail",
+      "background": "matrix rain + circuit paths + neural nodes",
+      "logo_effect": "glitch + energy rings",
+      "panels": "holographic sheen + corner brackets",
+      "waveform": "22 bar animated visualizer",
+      "stats_bar": "animated counters (videos, scenes, images, uptime)",
+      "processing_panel": "energy beams + dna helix",
+      "magnetic_button": true, "live_badge": true,
+      "neon_signature": true, "footer_accent": true,
+      "j2v_debugger_panel": true,
+      "sentry_trace_panel": true,
+      "render_timeline": true,
+      "postman_export_btn": true
+    },
+    "translations_supported": ["es","en","pt","fr","de","ja"],
+    "beat_bpm_by_mood": {
+      "epic":138,"action":160,"suspense":80,"futuristic":120,
+      "calm":72,"romantic":90,"horror":60,"documentary":95
+    }
+  }
+}

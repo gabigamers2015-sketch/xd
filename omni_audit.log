@@ -1,0 +1,66 @@
+[07:32:42] OK: Base de datos SQLite inicializada
+[07:32:44] OK: SFX: listo — 19 keys mapeados (soundhelix 9/9 URLs activas)
+[07:33:13] INFO: portrait 720x1280 | 3 escenas | 30fps | cinematic | cinematic
+[07:33:13] INFO: Caps:false Doc:false Karaoke:false Chain:false Thumb:true Queue:false
+[07:33:13] INFO: Intentando GPT-4o Mini...
+[07:33:23] OK: Guion: 3 escenas | mood: epic | "Un Oso Dormilón y un Gato Comelón" | via: GPT-4o Mini
+[07:33:23] INFO:   Beat sync: 138 BPM → 3.5s → clamped 4s
+[07:33:23] INFO:   [1] Prompt: "large brown bear sleeping in cozy cave, soft light filtering in, peaceful atmosphere, cinematic ligh..."
+[07:33:23] INFO:   [1] seed:1774305277553 | "large brown bear sleeping in cozy cave, soft light filtering in, peace..."
+[07:33:23] INFO:   [1] Veo 3.1 Fast → "large brown bear sleeping in cozy cave, soft light filtering in, peace..."
+[07:33:23] WARN:   [1] Veo 3.1 falló: Request failed with status code 500
+[07:33:23] INFO:   [1] Sora 2 → "large brown bear sleeping in cozy cave, soft light filtering in, peace..."
+[07:33:23] WARN:   [1] Sora 2 falló: Request failed with status code 500
+[07:33:23] INFO:   [1] Stock video: "large brown bear" (portrait)
+[07:33:24] WARN:   [1] Coverr fallo: Request failed with status code 401
+[07:33:24] OK:   [1] ✓ Pexels: https://videos.pexels.com/video-files/17301128/17301128-hd_1080_1920_3
+[07:33:24] OK:   [1] ✓ Stock Video → https://videos.pexels.com/video-files/17301128/17301128-hd_1
+[07:33:24] INFO:   [1/3] Pausa 8s...
+[07:33:32] INFO:   [2] Prompt: "playful fat cat pawing at dripping honey, bright sunny forest, vibrant flowers, cinematic lighting, ..."
+[07:33:32] INFO:   [2] seed:1774305348856 | "playful fat cat pawing at dripping honey, bright sunny forest, vibrant..."
+[07:33:32] INFO:   [2] Veo 3.1 Fast → "playful fat cat pawing at dripping honey, bright sunny forest, vibrant..."
+[07:33:33] WARN:   [2] Veo 3.1 falló: Request failed with status code 500
+[07:33:33] INFO:   [2] Sora 2 → "playful fat cat pawing at dripping honey, bright sunny forest, vibrant..."
+[07:33:33] WARN:   [2] Sora 2 falló: Request failed with status code 500
+[07:33:33] INFO:   [2] Stock video: "playful fat cat" (portrait)
+[07:33:34] WARN:   [2] Coverr fallo: Request failed with status code 401
+[07:33:34] OK:   [2] ✓ Pexels: https://videos.pexels.com/video-files/7691942/7691942-hd_1080_2048_30f
+[07:33:34] OK:   [2] ✓ Stock Video → https://videos.pexels.com/video-files/7691942/7691942-hd_108
+[07:33:34] INFO:   [2/3] Pausa 8s...
+[07:33:42] INFO:   [3] Prompt: "bear waking up, surprised by kitten, vast forest clearing, sunlight shining down, cinematic lighting..."
+[07:33:42] INFO:   [3] seed:1774305491936 | "bear waking up, surprised by kitten, vast forest clearing, sunlight sh..."
+[07:33:42] INFO:   [3] Veo 3.1 Fast → "bear waking up, surprised by kitten, vast forest clearing, sunlight sh..."
+[07:33:43] WARN:   [3] Veo 3.1 falló: Request failed with status code 500
+[07:33:43] INFO:   [3] Sora 2 → "bear waking up, surprised by kitten, vast forest clearing, sunlight sh..."
+[07:33:43] WARN:   [3] Sora 2 falló: Request failed with status code 500
+[07:33:43] INFO:   [3] Stock video: "bear waking up" (portrait)
+[07:33:44] WARN:   [3] Coverr fallo: Request failed with status code 401
+[07:33:44] OK:   [3] ✓ Pexels: https://videos.pexels.com/video-files/33597038/14281435_360_640_50fps.
+[07:33:44] OK:   [3] ✓ Stock Video → https://videos.pexels.com/video-files/33597038/14281435_360_
+[07:33:44] OK: Imágenes: 3/3 IA | 0 fallback | Director mode ON
+[07:33:44] INFO:   Beat sync: 72 BPM → 3.3s → clamped 4s
+[07:33:44] INFO:   Beat sync: 138 BPM → 3.5s → clamped 4s
+[07:33:44] INFO:   Beat sync: 138 BPM → 3.5s → clamped 4s
+[07:33:44] INFO: Thumbnail: generando para "Un Oso Dormilón y un Gato Comelón"
+[07:33:52] INFO:   [100] Descargando imagen...
+[07:33:52] WARN: Thumbnail fallo: Request failed with status code 404
+[07:33:52] OK: Ensamblado: 3 escenas | 12s total | Grade:true HUD:false Karaoke:false MultiVoice:false
+[07:33:52] INFO: Payload J2V: {"resolution":"720x1280","quality":"high","fps":30,"scenes":3,"totalDuration":"12s","elementsPerScene":"s1:9el s2:8el s3:9el"}
+[07:33:54] OK: [1mEXITO! ID: ugmq1ckU3DGJe74L[0m
+[07:33:54] INFO: Gmail: no configurado (GMAIL_USER/GMAIL_PASS/NOTIFY_EMAIL vacíos)
+[07:33:54] INFO: Google Calendar: no configurado (GCAL_CLIENT_ID / GCAL_CLIENT_SECRET / GCAL_REFRESH_TOKEN vacíos)
+[07:33:54] INFO: Base44: no configurado (BASE44_API_KEY / BASE44_APP_ID vacíos)
+[07:33:54] OK: Integraciones: Gmail:false | Cal:— | Base44:—
+[07:33:59] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="running" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:03] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="running" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:07] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="running" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:11] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="running" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:15] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="running" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:19] INFO: Status [ugmq1ckU3DGJe74L]: raw_status="error" has_url=false keys=success,status,message,project,url,ass,created_at,ended_at,json,rendering_time,consumed_credits
+[07:34:19] ERROR: Render fallido [ugmq1ckU3DGJe74L] Error: Error rendering video
+[10:09:49] OK: Base de datos SQLite inicializada
+[10:09:51] OK: SFX: listo — 19 keys mapeados (soundhelix 9/9 URLs activas)
+[10:59:41] OK: Base de datos SQLite inicializada
+[10:59:43] OK: SFX: listo — 19 keys mapeados (soundhelix 9/9 URLs activas)
+[11:00:16] OK: Base de datos SQLite inicializada
+[11:00:18] OK: SFX: listo — 19 keys mapeados (soundhelix 9/9 URLs activas)
